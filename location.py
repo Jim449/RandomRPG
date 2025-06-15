@@ -15,23 +15,27 @@ class Location():
     FENCE = 4
 
     """Describes a location in the maze"""
-    def __init__(self, room, width: int = 15, height: int = 15, gap: int = 3):
+    def __init__(self, room, width: int = 13, height: int = 13, gap: int = 3,
+                 mountain_chance: float = 0.3, fence_chance: float = 0.0, 
+                 obstacle_coverage: float = 0.5):
         self.terrain = [[0 for x in range(width)] for y in range(height)]
         self.width = width
         self.height = height
         self.create_edges(room, gap)
         
         # Random check to add mountain terrain near center
-        if random.random() < 0.3:
+        if random.random() < mountain_chance:
             self.add_center_mountains()
         
         self.expand_terrain_pools()
         
         # Create some trees which the fences can collide with
         # But not so many, that'd make the fences too short
-        self.create_obstacles(room, 0.1)
-        self.create_fences()
-        obstacle_percentage = self.calculate_safe_obstacle_percentage(0.5)
+        if random.random() < fence_chance:
+            self.create_obstacles(room, 0.1)
+            self.create_fences()
+
+        obstacle_percentage = self.calculate_safe_obstacle_percentage(obstacle_coverage)
         self.create_obstacles(room, obstacle_percentage)
     
     def create_edges(self, room, gap: int) -> None:

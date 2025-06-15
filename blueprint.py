@@ -61,10 +61,6 @@ class Blueprint():
                 room.area = original.area
                 room.number = original.number
                 blueprint.rooms.append(room)
-                # Testingtesting!
-                blueprint.display()
-                input()
-                # Looking good!
 
             # I've ensured this room connects to a room which has already been placed
             # But I still need to figure out which room it connects to
@@ -101,10 +97,6 @@ class Blueprint():
                         next_room.number = original.number
                         blueprint.connect_rooms(room.x, room.y, dir)
                         blueprint.rooms.append(next_room)
-
-                        # Testingtesting!
-                        blueprint.display()
-                        input()
                         break
                 except IndexError:
                     # Failure, out of directions
@@ -120,12 +112,8 @@ class Blueprint():
                                 last_room.x, last_room.y, dir, Room.CLOSED)
                     last_room.clear()
                     blueprint.rooms.pop()
-
-                    # Testingtesting!
-                    print(f"Unable to place room {original.area}!")
-                    blueprint.display()
-                    input()
                     break
+        return blueprint
 
     def setup(self) -> None:
         """Initializes empty rooms"""
@@ -136,7 +124,7 @@ class Blueprint():
         for y in range(self.length):
             row = []
             for x in range(self.length):
-                room = Room(x, y, index, -1)
+                room = Room(x, y, number=index, area=index)
                 row.append(room)
                 self.rooms.append(room)
                 index += 1
@@ -222,9 +210,17 @@ class Blueprint():
     def connect_rooms(self, x: int, y: int, dir: int, connection: int = Room.OPEN) -> None:
         """Create a two-way path between adjacent rooms"""
         room = self.get_location(x, y)
-        next_room = self.get_next_location(x, y, dir)
-        room.set_path(dir, connection, next_room.number)
-        next_room.set_path(Room.reverse(dir), connection, room.number)
+
+        try:
+            next_room = self.get_next_location(x, y, dir)
+            room.set_path(dir, connection, next_room.number)
+            next_room.set_path(Room.reverse(dir), connection, room.number)
+        except IndexError:
+            room.set_path(dir, connection, -1)
+
+    def clear_construction_log(self) -> None:
+        with open("construction_log.txt", "w") as f:
+            f.write("")
 
     def write_construction_log(self, message: str) -> None:
         with open("construction_log.txt", "a") as f:
@@ -268,20 +264,29 @@ class Blueprint():
             layout += "\n"
         layout += "\n"
         return layout
+    
+    @staticmethod
+    def main_map_blueprint() -> Self:
+        blueprint = Blueprint(3, 3)
+        blueprint.setup()
+        blueprint.connect_rooms(0, 0, Room.EAST)
+        blueprint.connect_rooms(1, 0, Room.SOUTH)
+        blueprint.connect_rooms(2, 0, Room.SOUTH)
+        blueprint.connect_rooms(0, 1, Room.EAST)
+        blueprint.connect_rooms(0, 1, Room.SOUTH)
+        blueprint.connect_rooms(1, 1, Room.EAST)
+        blueprint.connect_rooms(1, 1, Room.SOUTH)
+        blueprint.connect_rooms(2, 1, Room.SOUTH)
+        blueprint.connect_rooms(0, 2, Room.EAST)
+        # Would connect outside of the map. Which is permissable but I'm not sure if it works
+        # blueprint.connect_rooms(0, 2, Room.SOUTH)
+        blueprint.connect_rooms(1, 2, Room.EAST)
+        return blueprint
 
 
 if __name__ == "__main__":
     blueprint: Blueprint = Blueprint(3, 3)
     blueprint.setup()
-    blueprint.get_location(0, 0).area = 0
-    blueprint.get_location(1, 0).area = 1
-    blueprint.get_location(2, 0).area = 2
-    blueprint.get_location(0, 1).area = 3
-    blueprint.get_location(1, 1).area = 4
-    blueprint.get_location(2, 1).area = 5
-    blueprint.get_location(0, 2).area = 6
-    blueprint.get_location(1, 2).area = 7
-    blueprint.get_location(2, 2).area = 8
     blueprint.connect_rooms(0, 0, Room.EAST)
     blueprint.connect_rooms(1, 0, Room.EAST)
     blueprint.connect_rooms(1, 0, Room.SOUTH)

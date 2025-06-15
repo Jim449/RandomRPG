@@ -47,7 +47,11 @@ class Room():
     def set_path(self, dir: int, value: int, linked_room: int) -> None:
         """Sets a path towards a direction to OPEN or CLOSED"""
         self.paths[dir] = value
-        self.connections.append(linked_room)
+        
+        if value > 0:
+            self.connections.append(linked_room)
+        elif linked_room in self.connections:
+            self.connections.remove(linked_room)
     
     def set_terrain(self, dir: int, value: int) -> None:
         """Sets the terrain in a direction

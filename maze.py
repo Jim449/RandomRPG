@@ -276,8 +276,7 @@ class Maze(Blueprint):
                         room.set_area_connection(neighbor.area)
                         neighbor.set_area_connection(room.area)
                     else:
-                        print(f"No available connections between {area_1} and {area_2}")
-                        # raise IllegalMazeError(f"No available connections between {area_1} and {area_2}")
+                        raise IllegalMazeError(f"No available connections between {area_1} and {area_2}")
 
     def confirm_area_sizes(self, size: int) -> bool:
         """Checks that all areas are of the the correct size"""
@@ -333,6 +332,7 @@ class Maze(Blueprint):
         """All areas exchanges rooms in order to randomize shapes"""
         area_size = self.area_length**2
         max_difference = 2
+        self.clear_construction_log()
         
         # Test with a few tries first
         for tries in range(10):
@@ -352,14 +352,15 @@ class Maze(Blueprint):
     def copy(self) -> Self:
         """Returns a copy of the maze"""
         maze = Maze(self.area_count, self.area_length)
+        maze.blueprint = self.blueprint
+        maze.map = [[None for x in range(self.length)] for y in range(self.length)]
+        maze.trails = self.trails
+
         for room in self.rooms:
             room_copy = room.copy()
             maze.rooms.append(room_copy)
-            maze.areas[room_copy.area].append(room_copy)
-            maze.map = [[None for x in range(self.length)] for y in range(self.length)]
+            maze.areas[room_copy.area].append(room_copy)    
             maze.map[room_copy.y][room_copy.x] = room_copy
-            maze.blueprint = self.blueprint
-            maze.trails = self.trails
         return maze
 
 
