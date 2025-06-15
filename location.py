@@ -38,6 +38,12 @@ class Location():
         obstacle_percentage = self.calculate_safe_obstacle_percentage(obstacle_coverage)
         self.create_obstacles(room, obstacle_percentage)
     
+    def get_terrain(self, x: int, y: int) -> int:
+        return self.terrain[y][x]
+    
+    def get_passable(self, x: int, y: int) -> bool:
+        return self.terrain[y][x] <= 0
+    
     def create_edges(self, room, gap: int) -> None:
         """Creates edges around the room"""
         for x in range(self.width // 2):
