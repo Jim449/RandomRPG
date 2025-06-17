@@ -1,10 +1,10 @@
 from room import Room
 from blueprint import Blueprint
 from trail import Trail
-from random import shuffle
+from random import shuffle, random, randint
 from maze_exceptions import IllegalMazeError
 from typing import Self
-
+from area import Area
 
 class Maze(Blueprint):
     """A maze"""
@@ -14,9 +14,13 @@ class Maze(Blueprint):
         super().__init__(area_count, area_length)
         self.length: int = area_count * area_length
         self.size: int = self.length**2
-        self.areas: list[list[Room]] = [[] for x in range(area_count**2)]
+        self.areas: list[Area] = []
         self.blueprint: Blueprint = None
         self.trails: list[Trail] = []
+    
+    def add_area(self, area: Area) -> None:
+        """Adds an area to the maze"""
+        self.areas.append(area)
 
     def build_maze(self, blueprint: Blueprint) -> None:
         """Constructs the maze from a blueprint"""
@@ -43,7 +47,7 @@ class Maze(Blueprint):
 
         Raises:
             IndexError"""
-        return self.areas[id]
+        return self.areas[id].get_rooms()
     
     def get_area_link(self, room: Room) -> Room:
         """Returns the external area room that is linked to the given room"""
@@ -96,8 +100,8 @@ class Maze(Blueprint):
         """Restores a room to its previous area"""
         room.area = old_area
         room.exchanged = False
-        self.get_area(new_area).remove(room)
-        self.get_area(old_area).append(room)
+        self.areas[new_area].remove_room(room)
+        self.areas[old_area].add_room(room)
 
     def set_area(self, room: Room, area: int) -> None:
         """Assigns an area to a room. If this results in
@@ -109,10 +113,10 @@ class Maze(Blueprint):
         room.exchange_to_area(area)
 
         if old_area == -1:
-            self.get_area(area).append(room)
+            self.areas[area].add_room(room)
         else:
-            self.get_area(old_area).remove(room)
-            self.get_area(area).append(room)
+            self.areas[old_area].remove_room(room)
+            self.areas[area].add_room(room)
 
             if not self.check_area_unity(old_area):
                 raise IllegalMazeError("Area is broken into parts.")
@@ -124,13 +128,10 @@ class Maze(Blueprint):
         and a direction linking the rooms together.
         The algorithm checks rooms and direction in a random order.
         If area_2 is None, it represents any area not equal to area_1"""
-        area_copy = self.areas[area_1].copy()
+        area_copy = self.get_area(area_1).copy()
         shuffle(area_copy)
 
-        entries = []        
-        # area_1_rooms = []
-        # directions = []
-        # area_2_rooms = []
+        entries = []
 
         for room in area_copy:
             for dir in self.get_directions():
@@ -139,22 +140,14 @@ class Maze(Blueprint):
 
                     if area_2 is None and neighbor.area != area_1:
                         if (unexchanged_only and neighbor.is_exchanged()) or (no_area_connections and (room.is_area_connected() or neighbor.is_area_connected())):
-                            # Too many rooms are being skipped. Something off with the if-statement?
                             continue
-                        # area_1_rooms.append(room)
-                        # area_2_rooms.append(neighbor)
-                        # directions.append(dir)
                         entries.append((room, neighbor, dir))
                     elif area_2 is not None and neighbor.area == area_2:
                         if (unexchanged_only and neighbor.is_exchanged()) or (no_area_connections and (room.is_area_connected() or neighbor.is_area_connected())):
                             continue
-                        # area_1_rooms.append(room)
-                        # area_2_rooms.append(neighbor)
-                        # directions.append(dir)
                         entries.append((room, neighbor, dir))
                 except IndexError:
                     pass
-        # return (area_1_rooms, area_2_rooms, directions)
         return entries
 
     def link_areas(self, area_1: int, area_2: int) -> None:
@@ -184,12 +177,11 @@ class Maze(Blueprint):
             try:
                 neighbor = self.get_next_location(room.x, room.y, dir)
 
-                if connect and neighbor.area == room.area \
+                if connect:
+                    if neighbor.area == room.area \
                         and trail.has_connection(neighbor.trail) == False:
-                    self.connect_rooms(room.x, room.y, dir)
-                    return neighbor
-                elif connect:
-                    return None
+                        self.connect_rooms(room.x, room.y, dir)
+                        return neighbor
                 elif neighbor.is_unconnected() and neighbor.area == room.area:
                     self.connect_rooms(room.x, room.y, dir)
                     return neighbor
@@ -348,6 +340,91 @@ class Maze(Blueprint):
             elif self.confirm_area_sizes(area_size):
                 return
         raise IllegalMazeError("Failed to exchange rooms evenly")
+    
+    def expand_inaccessible_tiles(self, room: Room, expansions: int, tile: int) -> int:
+        """Expands inaccessible tiles to adjacent rooms.
+        Returns the amount of successful expansions."""
+        expansion_count = 0
+
+        for dir in self.get_directions():
+            try:
+                neighbor = self.get_next_location(room.x, room.y, dir)
+                if neighbor.area == room.area:
+                    neighbor.set_inaccessible_tile(tile, True)
+                    expansion_count += 1
+                    if expansion_count == expansions:
+                        return expansion_count
+            except IndexError:
+                pass
+        return expansion_count
+
+    def place_inaccessible_tiles_in_area(self, area: Area) -> None:
+        """Places inaccessible tiles in the rooms of the area.
+        Rooms are picked at random but adjacent rooms are preferred."""
+        rooms = area.get_rooms().copy()
+        shuffle(rooms)
+        amount = area.inaccessible_tile_amount
+
+        for room in rooms:
+            if room.inaccessible_tile is None and amount > 0:
+                room.set_inaccessible_tile(area.base_inaccessible_tile, True)
+                amount -= 1
+                if amount == 0:
+                    return
+                amount -= self.expand_inaccessible_tiles(room, randint(0, amount), area.base_inaccessible_tile)
+    
+    def place_inaccessible_tiles(self) -> None:
+        """Places inaccessible tiles in the maze"""
+        for area in self.areas:
+            if area.inaccessible_tile_amount > 0:
+                self.place_inaccessible_tiles_in_area(area)
+
+    def place_obstacle_in_room(self, room: Room, direction: int, obstacle: int) -> None:
+        """Places an obstacle in the corner of a room.
+        Directions NESW are treated as NE, SE, SW, NW.
+        Obstacles will extend to adjacent rooms."""
+        room.terrain[direction] = obstacle
+        clockwise = ((Room.NORTH, Room.EAST), (Room.EAST, Room.SOUTH), (Room.SOUTH, Room.WEST), (Room.WEST, Room.NORTH))
+        directions = ((0, -1), (1, 0), (0, 1), (-1, 0))
+        for i, (travel, obstacle_dir) in enumerate(clockwise):
+            if obstacle_dir == direction:
+                start = (i + 1) % 4
+                break
+        
+        x = room.x
+        y = room.y
+
+        for i in range(start, start + 3):
+            try:
+                travel_dir, obstacle_dir = clockwise[i % 4]
+                x += directions[travel_dir][0]
+                y += directions[travel_dir][1]
+                current_room = self.get_location(x, y)
+                current_room.terrain[obstacle_dir] = obstacle
+            except IndexError:
+                pass
+
+    def place_large_obstacles(self) -> None:
+        """Places large obstacles according to area settings.
+        Affected rooms are picked at random."""
+        for area in self.areas:
+            rooms = area.get_rooms().copy()
+            shuffle(rooms)
+            placed = 0
+
+            for room in rooms:
+                direction = randint(0, 3)
+
+                if room.terrain[direction] is None:
+                    self.place_obstacle_in_room(room, direction, area.large_obstacles[0])
+                    placed += 1
+                    if placed == area.large_obstacle_amount:
+                        break
+    
+    def construct_locations(self) -> None:
+        """Constructs the locations of the maze"""
+        for area in self.areas:
+            area.construct_locations()
 
     def copy(self) -> Self:
         """Returns a copy of the maze"""
@@ -355,11 +432,12 @@ class Maze(Blueprint):
         maze.blueprint = self.blueprint
         maze.map = [[None for x in range(self.length)] for y in range(self.length)]
         maze.trails = self.trails
+        maze.areas = [area.copy() for area in self.areas]
 
         for room in self.rooms:
             room_copy = room.copy()
             maze.rooms.append(room_copy)
-            maze.areas[room_copy.area].append(room_copy)    
+            maze.areas[room_copy.area].add_room(room_copy)
             maze.map[room_copy.y][room_copy.x] = room_copy
         return maze
 

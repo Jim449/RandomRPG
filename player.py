@@ -8,7 +8,9 @@ class Player():
         self.direction: tuple[int, int] = (0, 0)
         self.x_offset: int = 0
         self.y_offset: int = 0
+        self.base_speed: int = 2
         self.speed: int = 2
+        self.speed_boost: bool = False
         self.sprite: pygame.Surface = pygame.image.load("resources/people/player_small.png")
     
     def move(self) -> None:
@@ -32,3 +34,11 @@ class Player():
             self.moving = True
             self.direction = direction
             self.move()
+    
+    def set_speed_boost(self, boost: bool) -> None:
+        """Enable or disable speed boost (double speed when P is held)"""
+        self.speed_boost = boost
+        if boost:
+            self.speed = self.base_speed * 2
+        else:
+            self.speed = self.base_speed

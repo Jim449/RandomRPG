@@ -1,5 +1,6 @@
 from blueprint import Blueprint
-from maze import Maze
+from area import Area
+from maze import Maze, IllegalMazeError
 from location import Location
 from player import Player
 from room import Room
@@ -23,18 +24,25 @@ class Game():
         self.TERRAIN = {
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
-            Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock_2.png"),
+            Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
             Location.WATER: pygame.image.load("resources/obstacles/Water_2.png"),
-            Location.FENCE: None,
+            Location.FENCE: pygame.image.load("resources/obstacles/Fence.png"),
             Location.ROAD: None
         }
-        
+        self.load_images()
+
         # Initialize pygame
         pygame.init()
         self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         pygame.display.set_caption("Random RPG")
         self.clock = pygame.time.Clock()
         self.running = True
+    
+    def load_images(self):
+        directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        for i, dir in enumerate(directions):
+            self.TERRAIN[Location.MOUNTAIN + i + 1] = pygame.image.load(f"resources/obstacles/Green_rock_{dir}.png")
+        
 
     def new_game(self):
         blueprint = Blueprint.main_map_blueprint()
@@ -42,25 +50,90 @@ class Game():
         # Something's wrong with the randomization, connections are not respected
         # randomized_blueprint = blueprint.randomize_areas()
         # print(randomized_blueprint.get_layout())
+
+        area_0 = Area(0,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE),
+                      min_obstacle_coverage=0.3,
+                      max_obstacle_coverage=0.5,
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=4)
+        area_1 = Area(1,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.1,
+                      max_obstacle_coverage=0.3,
+                      large_obstacles=(Location.WATER,),
+                      large_obstacle_amount=2,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=4)
+        area_2 = Area(2,
+                      allowed_obstacles=(Location.FOREST, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.0,
+                      max_obstacle_coverage=0.1,
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=6)
+        area_3 = Area(3,
+                      allowed_obstacles=(Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.1,
+                      max_obstacle_coverage=0.3,
+                      large_obstacles=(Location.WATER,),
+                      large_obstacle_amount=0)
+        area_4 = Area(4,
+                      allowed_obstacles=(Location.FOREST),
+                      min_obstacle_coverage=0.5,
+                      max_obstacle_coverage=0.7,
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=4,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=4)
+        area_5 = Area(5,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.3,
+                      max_obstacle_coverage=0.5,
+                      large_obstacles=(Location.WATER,),
+                      large_obstacle_amount=8)
+        area_6 = Area(6,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.1,
+                      max_obstacle_coverage=0.3,
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=4)
+        area_7 = Area(7,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.5,
+                      max_obstacle_coverage=0.7,
+                      large_obstacles=(Location.WATER,),
+                      large_obstacle_amount=4,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=4)
+        area_8 = Area(8,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
+                      min_obstacle_coverage=0.1,
+                      max_obstacle_coverage=0.3,
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=4)
+        
         maze = Maze(3, 3)
+        for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):
+            maze.add_area(area)
+
         maze.build_maze(blueprint)
         self.maze = maze.copy()
         
         for tries in range(10):
             try:
                 self.maze.construct_connections()
-                self.maze.exchange_rooms()
+                # self.maze.exchange_rooms()
                 self.maze.start_trails()
                 self.maze.construct_areas()
                 break
-            except Exception as e:
+            except IllegalMazeError as e:
                 print(f"Attempt {tries} failed: {e}")
                 self.maze = maze.copy()
         
+        self.maze.place_large_obstacles()
+        self.maze.place_inaccessible_tiles()
+        self.maze.construct_locations()
         print(self.maze.get_layout())
-
-        for room in self.maze.rooms:
-            room.create_location(self.GRID_SIZE, self.GRID_SIZE, 3)
 
         self.current_room = self.maze.get_random_location()
         print(f"Current room: {(self.current_room.x, self.current_room.y)}")
@@ -87,38 +160,48 @@ class Game():
 
     def handle_events(self):
         """Handle pygame events"""
+        # Handle window events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
-                elif not self.player:
-                    break
-                elif event.key == pygame.K_w:
-                    if self.transition_check(self.player.x, self.player.y - 1):
-                        self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.NORTH))
-                        self.player.y = self.GRID_SIZE - 1
-                    elif not self.collision_check(self.player.x, self.player.y - 1):
-                        self.player.start_movement((0, -1))
-                elif event.key == pygame.K_s:
-                    if self.transition_check(self.player.x, self.player.y + 1):
-                        self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.SOUTH))
-                        self.player.y = 0
-                    elif not self.collision_check(self.player.x, self.player.y + 1):
-                        self.player.start_movement((0, 1))
-                elif event.key == pygame.K_a:
-                    if self.transition_check(self.player.x - 1, self.player.y):
-                        self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.WEST))
-                        self.player.x = self.GRID_SIZE - 1
-                    elif not self.collision_check(self.player.x - 1, self.player.y):
-                        self.player.start_movement((-1, 0))
-                elif event.key == pygame.K_d:
-                    if self.transition_check(self.player.x + 1, self.player.y):
-                        self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.EAST))
-                        self.player.x = 0
-                    elif not self.collision_check(self.player.x + 1, self.player.y):
-                        self.player.start_movement((1, 0))
+        
+        # Handle continuous movement
+        if self.player and not self.player.moving:
+            keys = pygame.key.get_pressed()
+            
+            # Check for speed boost
+            speed_boost = keys[pygame.K_p]
+            if speed_boost != self.player.speed_boost:
+                self.player.set_speed_boost(speed_boost)
+            
+            # Handle movement keys
+            if keys[pygame.K_w]:
+                if self.transition_check(self.player.x, self.player.y - 1):
+                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.NORTH))
+                    self.player.y = self.GRID_SIZE - 1
+                elif not self.collision_check(self.player.x, self.player.y - 1):
+                    self.player.start_movement((0, -1))
+            elif keys[pygame.K_s]:
+                if self.transition_check(self.player.x, self.player.y + 1):
+                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.SOUTH))
+                    self.player.y = 0
+                elif not self.collision_check(self.player.x, self.player.y + 1):
+                    self.player.start_movement((0, 1))
+            elif keys[pygame.K_a]:
+                if self.transition_check(self.player.x - 1, self.player.y):
+                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.WEST))
+                    self.player.x = self.GRID_SIZE - 1
+                elif not self.collision_check(self.player.x - 1, self.player.y):
+                    self.player.start_movement((-1, 0))
+            elif keys[pygame.K_d]:
+                if self.transition_check(self.player.x + 1, self.player.y):
+                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.EAST))
+                    self.player.x = 0
+                elif not self.collision_check(self.player.x + 1, self.player.y):
+                    self.player.start_movement((1, 0))
 
     def draw_location(self):
         """Draw the current location terrain on screen"""

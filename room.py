@@ -22,11 +22,13 @@ class Room():
         self.area: int = area
         self.trail: int = trail
         self.paths: list[int] = [0, 0, 0, 0]
-        self.terrain: list[int] = [Room.FOREST, Room.FOREST, Room.FOREST, Room.FOREST]
+        self.terrain: list[int] = [None, None, None, None]
         self.connections: list[int] = []
         self.area_connection: int = -1
         self.exchanged: bool = False
         self.location: Location = None
+        self.main_tile: int = 0
+        self.inaccessible_tile: int = None
 
     def get_type(self) -> str:
         """Returns the types of path NESW.
@@ -40,9 +42,20 @@ class Room():
                 result = "0" + result
         return result
 
-    def create_location(self, width: int = 15, height: int = 15, gap: int = 3) -> None:
+    def create_location(self, width: int = 15, height: int = 15, gap: int = 3,
+                        mountain_chance: float = 0.3, fence_chance: float = 0.3, 
+                        min_obstacle_coverage: float = 0.1, max_obstacle_coverage: float = 0.5) -> None:
         """Creates a location for the room"""
-        self.location = Location(self, width, height, gap)
+        self.location = Location(self,
+                                 width=width,
+                                 height=height,
+                                 gap=gap,
+                                 mountain_chance=mountain_chance,
+                                 fence_chance=fence_chance,
+                                 min_obstacle_coverage=min_obstacle_coverage,
+                                 max_obstacle_coverage=max_obstacle_coverage,
+                                 base_tile=self.main_tile,
+                                 base_inaccessible_tile=self.inaccessible_tile)
 
     def set_path(self, dir: int, value: int, linked_room: int) -> None:
         """Sets a path towards a direction to OPEN or CLOSED"""
@@ -83,6 +96,19 @@ class Room():
     def is_exchanged(self) -> bool:
         """Returns true if the room has been exchanged"""
         return self.exchanged
+    
+    def set_main_tile(self, tile: int) -> None:
+        """Sets the main tile of the room"""
+        self.main_tile = tile
+    
+    def set_inaccessible_tile(self, tile: int, set_border: bool = False) -> None:
+        """Sets the inaccessible tile of the room"""
+        self.inaccessible_tile = tile
+        
+        if set_border:
+            for i, obstacle in enumerate(self.terrain): 
+                if obstacle is None:
+                    self.terrain[i] = tile
 
     def clear(self) -> None:
         """Clears paths, number and area"""
@@ -120,9 +146,13 @@ if __name__ == "__main__":
     room = Room(0, 0)
     room.set_path(Room.NORTH, Room.OPEN, 1)
     room.set_path(Room.EAST, Room.OPEN, 2)
-    room.set_terrain(Room.NORTH, Room.FOREST)
-    room.set_terrain(Room.EAST, Room.FOREST)
-    room.set_terrain(Room.SOUTH, Room.FOREST)
-    room.set_terrain(Room.WEST, Room.FOREST)
-    room.create_location()
+    # room.set_terrain(Room.NORTH, Location.MOUNTAIN)
+    # room.set_terrain(Room.EAST, Location.MOUNTAIN)
+    # room.set_terrain(Room.SOUTH, Location.MOUNTAIN)
+    # room.set_terrain(Room.WEST, Location.MOUNTAIN)
+    room.location = Location(room, mountain_chance=0.0, fence_chance=0.0,
+                             min_obstacle_coverage=0.0, max_obstacle_coverage=0.0,
+                             base_inaccessible_tile=Location.WATER)
+    print(room.location.get_raw_layout())
+    print()
     print(room.location.get_layout())
