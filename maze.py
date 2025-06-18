@@ -1,7 +1,7 @@
 from room import Room
 from blueprint import Blueprint
 from trail import Trail
-from random import shuffle, random, randint
+from random import shuffle, random, randint, choice
 from maze_exceptions import IllegalMazeError
 from typing import Self
 from area import Area
@@ -408,15 +408,19 @@ class Maze(Blueprint):
         """Places large obstacles according to area settings.
         Affected rooms are picked at random."""
         for area in self.areas:
+            if not area.large_obstacles or area.large_obstacle_amount == 0:
+                continue
+            
             rooms = area.get_rooms().copy()
             shuffle(rooms)
             placed = 0
 
             for room in rooms:
                 direction = randint(0, 3)
+                obstacle = choice(area.large_obstacles)
 
                 if room.terrain[direction] is None:
-                    self.place_obstacle_in_room(room, direction, area.large_obstacles[0])
+                    self.place_obstacle_in_room(room, direction, obstacle)
                     placed += 1
                     if placed == area.large_obstacle_amount:
                         break

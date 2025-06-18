@@ -25,8 +25,10 @@ class Game():
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
             Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
-            Location.WATER: pygame.image.load("resources/obstacles/Water_2.png"),
+            Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
             Location.FENCE: pygame.image.load("resources/obstacles/Fence.png"),
+            Location.BRIDGE_H: None,
+            Location.BRIDGE_V: None,
             Location.ROAD: None
         }
         self.load_images()
@@ -40,10 +42,18 @@ class Game():
     
     def load_images(self):
         directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        
         for i, dir in enumerate(directions):
             self.TERRAIN[Location.MOUNTAIN + i + 1] = pygame.image.load(f"resources/obstacles/Green_rock_{dir}.png")
-        
-
+            try:
+                self.TERRAIN[Location.BRIDGE_H + i + 1] = pygame.image.load(f"resources/obstacles/Bridge_H_{dir}.png")
+            except FileNotFoundError:
+                pass
+            try:
+                self.TERRAIN[Location.BRIDGE_V + i + 1] = pygame.image.load(f"resources/obstacles/Bridge_V_{dir}.png")
+            except FileNotFoundError:
+                pass
+            
     def new_game(self):
         blueprint = Blueprint.main_map_blueprint()
         print(blueprint.get_layout())
@@ -52,65 +62,121 @@ class Game():
         # print(randomized_blueprint.get_layout())
 
         area_0 = Area(0,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE),
-                      min_obstacle_coverage=0.3,
-                      max_obstacle_coverage=0.5,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.FENCE, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.2, 0.4),
                       large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=4)
+                      large_obstacle_amount=4,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=0)
+        
         area_1 = Area(1,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.1,
-                      max_obstacle_coverage=0.3,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.FENCE, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.1, 0.3),
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=0,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=0)
+        
+        area_2 = Area(2,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.1, 0.3),
                       large_obstacles=(Location.WATER,),
+                      large_obstacle_amount=3,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=2)
+        
+        area_3 = Area(3,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.FOREST, Location.FENCE),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.0, 0.2),
+                      large_obstacles=(Location.MOUNTAIN, Location.WATER),
                       large_obstacle_amount=2,
                       base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=4)
-        area_2 = Area(2,
-                      allowed_obstacles=(Location.FOREST, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.0,
-                      max_obstacle_coverage=0.1,
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=6)
-        area_3 = Area(3,
-                      allowed_obstacles=(Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.1,
-                      max_obstacle_coverage=0.3,
-                      large_obstacles=(Location.WATER,),
-                      large_obstacle_amount=0)
+                      inaccessible_tile_amount=3)
+        
         area_4 = Area(4,
-                      allowed_obstacles=(Location.FOREST),
-                      min_obstacle_coverage=0.5,
-                      max_obstacle_coverage=0.7,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.WATER, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.3, 0.5),
                       large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=4,
+                      large_obstacle_amount=0,
                       base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=4)
+                      inaccessible_tile_amount=5)
+        
         area_5 = Area(5,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.3,
-                      max_obstacle_coverage=0.5,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.WATER, Location.FENCE, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.2, 0.4),
                       large_obstacles=(Location.WATER,),
-                      large_obstacle_amount=8)
-        area_6 = Area(6,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.1,
-                      max_obstacle_coverage=0.3,
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=4)
-        area_7 = Area(7,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.5,
-                      max_obstacle_coverage=0.7,
-                      large_obstacles=(Location.WATER,),
-                      large_obstacle_amount=4,
+                      large_obstacle_amount=3,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=4)
-        area_8 = Area(8,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.MOUNTAIN),
-                      min_obstacle_coverage=0.1,
-                      max_obstacle_coverage=0.3,
+        
+        area_6 = Area(6,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.WATER, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.4, 0.6),
+                      large_obstacles=(Location.MOUNTAIN, Location.WATER),
+                      large_obstacle_amount=1,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=1)
+        
+        area_7 = Area(7,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.WATER, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.3, 0.5),
                       large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=4)
+                      large_obstacle_amount=2,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=2)
+        
+        area_8 = Area(8,
+                      base_tile=Location.GRASS,
+                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
+                      pool_terrain_chance=0.5,
+                      pool_terrain_growth=(0, 4),
+                      line_terrain_chance=0.5,
+                      line_terrain_amount=(1, 3),
+                      obstacle_coverage=(0.2, 0.4),
+                      large_obstacles=(Location.MOUNTAIN,),
+                      large_obstacle_amount=4,
+                      base_inaccessible_tile=Location.WATER,
+                      inaccessible_tile_amount=0)
         
         maze = Maze(3, 3)
         for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):

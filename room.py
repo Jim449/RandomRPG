@@ -27,7 +27,6 @@ class Room():
         self.area_connection: int = -1
         self.exchanged: bool = False
         self.location: Location = None
-        self.main_tile: int = 0
         self.inaccessible_tile: int = None
 
     def get_type(self) -> str:
@@ -42,19 +41,23 @@ class Room():
                 result = "0" + result
         return result
 
-    def create_location(self, width: int = 15, height: int = 15, gap: int = 3,
-                        mountain_chance: float = 0.3, fence_chance: float = 0.3, 
-                        min_obstacle_coverage: float = 0.1, max_obstacle_coverage: float = 0.5) -> None:
+    def create_location(self, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
+                        pool_terrain_chance: float = 0.3, pool_terrain_growth: tuple[int, int] = (0, 2),
+                        line_terrain_chance: float = 0.3, line_terrain_amount: tuple[int, int] = (1, 3),
+                        base_tile: int = 0,
+                        obstacle_coverage: tuple[float, float] = (0.2, 0.4)) -> None:
         """Creates a location for the room"""
         self.location = Location(self,
+                                 allowed_obstacles=allowed_obstacles,
                                  width=width,
                                  height=height,
                                  gap=gap,
-                                 mountain_chance=mountain_chance,
-                                 fence_chance=fence_chance,
-                                 min_obstacle_coverage=min_obstacle_coverage,
-                                 max_obstacle_coverage=max_obstacle_coverage,
-                                 base_tile=self.main_tile,
+                                 pool_terrain_chance=pool_terrain_chance,
+                                 pool_terrain_growth=pool_terrain_growth,
+                                 line_terrain_chance=line_terrain_chance,
+                                 line_terrain_amount=line_terrain_amount,
+                                 obstacle_coverage=obstacle_coverage,
+                                 base_tile=base_tile,
                                  base_inaccessible_tile=self.inaccessible_tile)
 
     def set_path(self, dir: int, value: int, linked_room: int) -> None:
@@ -146,13 +149,15 @@ if __name__ == "__main__":
     room = Room(0, 0)
     room.set_path(Room.NORTH, Room.OPEN, 1)
     room.set_path(Room.EAST, Room.OPEN, 2)
-    # room.set_terrain(Room.NORTH, Location.MOUNTAIN)
-    # room.set_terrain(Room.EAST, Location.MOUNTAIN)
+    room.set_terrain(Room.NORTH, Location.MOUNTAIN)
+    room.set_terrain(Room.EAST, Location.MOUNTAIN)
     # room.set_terrain(Room.SOUTH, Location.MOUNTAIN)
     # room.set_terrain(Room.WEST, Location.MOUNTAIN)
-    room.location = Location(room, mountain_chance=0.0, fence_chance=0.0,
-                             min_obstacle_coverage=0.0, max_obstacle_coverage=0.0,
-                             base_inaccessible_tile=Location.WATER)
+    room.set_inaccessible_tile(Location.WATER)
+    room.create_location(allowed_obstacles=(Location.FOREST, Location.MOUNTAIN, Location.FENCE),
+                         pool_terrain_chance=0.5, pool_terrain_growth=(0, 4),
+                         line_terrain_chance=0.5, line_terrain_amount=(1, 3),
+                         obstacle_coverage=(0.2, 0.2))
     print(room.location.get_raw_layout())
     print()
     print(room.location.get_layout())
