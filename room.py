@@ -9,10 +9,6 @@ class Room():
     EAST = 1
     SOUTH = 2
     WEST = 3
-    # Terrain types
-    FOREST = 1
-    MOUNTAIN = 2
-    WATER = 3
 
     def __init__(self, x: int, y: int, number: int = -1, area: int = -1, trail: int = -1):
         """Creates an empty room at (x, y)"""
@@ -42,8 +38,8 @@ class Room():
         return result
 
     def create_location(self, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
-                        pool_terrain_chance: float = 0.3, pool_terrain_growth: tuple[int, int] = (0, 2),
-                        line_terrain_chance: float = 0.3, line_terrain_amount: tuple[int, int] = (1, 3),
+                        pool_terrain_amount: tuple[int, int] = (0, 0), pool_terrain_growth: tuple[int, int] = (0, 2),
+                        line_terrain_amount: tuple[int, int] = (1, 3), corner_terrain_growth: tuple[int, int] = (0, 1),
                         base_tile: int = 0,
                         obstacle_coverage: tuple[float, float] = (0.2, 0.4)) -> None:
         """Creates a location for the room"""
@@ -52,10 +48,10 @@ class Room():
                                  width=width,
                                  height=height,
                                  gap=gap,
-                                 pool_terrain_chance=pool_terrain_chance,
+                                 pool_terrain_amount=pool_terrain_amount,
                                  pool_terrain_growth=pool_terrain_growth,
-                                 line_terrain_chance=line_terrain_chance,
                                  line_terrain_amount=line_terrain_amount,
+                                 corner_terrain_growth=corner_terrain_growth,
                                  obstacle_coverage=obstacle_coverage,
                                  base_tile=base_tile,
                                  base_inaccessible_tile=self.inaccessible_tile)
@@ -81,6 +77,14 @@ class Room():
     def has_path(self, dir: int) -> bool:
         """Returns true if there is a path towards the given direction"""
         return self.paths[dir] > 0
+    
+    def count_paths(self) -> int:
+        """Returns the number of paths"""
+        amount = 0
+        for path in self.paths:
+            if path > 0:
+                amount += 1
+        return amount
 
     def connected_to(self, room_number: int) -> bool:
         """Returns true if there is a direct path from this room
@@ -104,14 +108,9 @@ class Room():
         """Sets the main tile of the room"""
         self.main_tile = tile
     
-    def set_inaccessible_tile(self, tile: int, set_border: bool = False) -> None:
+    def set_inaccessible_tile(self, tile: int) -> None:
         """Sets the inaccessible tile of the room"""
         self.inaccessible_tile = tile
-        
-        if set_border:
-            for i, obstacle in enumerate(self.terrain): 
-                if obstacle is None:
-                    self.terrain[i] = tile
 
     def clear(self) -> None:
         """Clears paths, number and area"""
@@ -151,12 +150,12 @@ if __name__ == "__main__":
     room.set_path(Room.EAST, Room.OPEN, 2)
     room.set_terrain(Room.NORTH, Location.MOUNTAIN)
     room.set_terrain(Room.EAST, Location.MOUNTAIN)
-    # room.set_terrain(Room.SOUTH, Location.MOUNTAIN)
-    # room.set_terrain(Room.WEST, Location.MOUNTAIN)
-    room.set_inaccessible_tile(Location.WATER)
+    room.set_terrain(Room.SOUTH, Location.MOUNTAIN)
+    room.set_terrain(Room.WEST, Location.MOUNTAIN)
+    # room.set_inaccessible_tile(Location.WATER)
     room.create_location(allowed_obstacles=(Location.FOREST, Location.MOUNTAIN, Location.FENCE),
-                         pool_terrain_chance=0.5, pool_terrain_growth=(0, 4),
-                         line_terrain_chance=0.5, line_terrain_amount=(1, 3),
+                         pool_terrain_amount=(0, 0), pool_terrain_growth=(0, 4),
+                         line_terrain_amount=(1, 3),
                          obstacle_coverage=(0.2, 0.2))
     print(room.location.get_raw_layout())
     print()

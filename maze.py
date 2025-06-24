@@ -350,13 +350,22 @@ class Maze(Blueprint):
             try:
                 neighbor = self.get_next_location(room.x, room.y, dir)
                 if neighbor.area == room.area:
-                    neighbor.set_inaccessible_tile(tile, True)
+                    neighbor.set_inaccessible_tile(tile)
                     expansion_count += 1
                     if expansion_count == expansions:
                         return expansion_count
             except IndexError:
                 pass
         return expansion_count
+
+    def place_inaccessible_tile_in_room(self, room: Room, tile: int) -> None:
+        """Sets the inaccessible tile of a room.
+        If large corner terrain is not set, sets it to the inaccessible tile.
+        Expands to adjacent rooms corner terrain.
+        """
+        room.set_inaccessible_tile(tile)
+        for dir in range(4):
+            self.place_obstacle_in_room(room, dir, tile, overwrite=False)
 
     def place_inaccessible_tiles_in_area(self, area: Area) -> None:
         """Places inaccessible tiles in the rooms of the area.
@@ -367,7 +376,7 @@ class Maze(Blueprint):
 
         for room in rooms:
             if room.inaccessible_tile is None and amount > 0:
-                room.set_inaccessible_tile(area.base_inaccessible_tile, True)
+                self.place_inaccessible_tile_in_room(room, area.base_inaccessible_tile)
                 amount -= 1
                 if amount == 0:
                     return
@@ -379,10 +388,12 @@ class Maze(Blueprint):
             if area.inaccessible_tile_amount > 0:
                 self.place_inaccessible_tiles_in_area(area)
 
-    def place_obstacle_in_room(self, room: Room, direction: int, obstacle: int) -> None:
+    def place_obstacle_in_room(self, room: Room, direction: int, obstacle: int, overwrite: bool = False) -> None:
         """Places an obstacle in the corner of a room.
         Directions NESW are treated as NE, SE, SW, NW.
         Obstacles will extend to adjacent rooms."""
+        if overwrite == False and room.terrain[direction] != None:
+            return
         room.terrain[direction] = obstacle
         clockwise = ((Room.NORTH, Room.EAST), (Room.EAST, Room.SOUTH), (Room.SOUTH, Room.WEST), (Room.WEST, Room.NORTH))
         directions = ((0, -1), (1, 0), (0, 1), (-1, 0))

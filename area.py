@@ -1,13 +1,15 @@
 from room import Room
+from location import Location
 from typing import Self, Iterator
 
 class Area():
-    def __init__(self, id: int, base_tile: int = 0, allowed_obstacles: tuple[int] = (1, 2, 3, 4),
-                 pool_terrain_chance: float = 0.3, pool_terrain_growth: tuple[int, int] = (0, 2),
-                 line_terrain_chance: float = 0.3, line_terrain_amount: tuple[int, int] = (1, 3),
+    def __init__(self, id: int, name: str, base_tile: int = Location.GRASS, allowed_obstacles: tuple[int] = (Location.FOREST, Location.FENCE),
+                 pool_terrain_amount: tuple[int, int] = (0, 0), pool_terrain_growth: tuple[int, int] = (0, 2),
+                 line_terrain_amount: tuple[int, int] = (0, 0),
                  obstacle_coverage: tuple[float, float] = (0.1, 0.3),
                  large_obstacles: tuple[int] | None = None, large_obstacle_amount: int = 4,
-                 base_inaccessible_tile: int = 3, inaccessible_tile_amount: int = 0):
+                 large_obstacle_growth: tuple[int, int] = (0, 1),
+                 base_inaccessible_tile: int = Location.WATER, inaccessible_tile_amount: int = 0):
         """Constructs an area, consisting of multiple rooms.
         
         Args:
@@ -24,13 +26,14 @@ class Area():
         inaccessible_base_tiles: Blocking terrain which is used to cover the majority of a room.
         inaccessible_tile_amount: Amount of rooms in which inaccessible base tiles are placed."""
         self.id: int = id
+        self.name: str = name
         self.rooms: list[Room] = []
         self.base_tile: int = base_tile
         self.allowed_obstacles: tuple[int] = allowed_obstacles
-        self.pool_terrain_chance: float = pool_terrain_chance
+        self.pool_terrain_amount: tuple[int, int] = pool_terrain_amount
         self.pool_terrain_growth: tuple[int, int] = pool_terrain_growth
-        self.line_terrain_chance: float = line_terrain_chance
         self.line_terrain_amount: tuple[int, int] = line_terrain_amount
+        self.large_obstacle_growth: tuple[int, int] = large_obstacle_growth
         self.obstacle_coverage: tuple[float, float] = obstacle_coverage
         self.large_obstacles: tuple[int] = large_obstacles
         self.large_obstacle_amount: int = large_obstacle_amount
@@ -53,18 +56,27 @@ class Area():
                                  width=grid_size,
                                  height=grid_size,
                                  gap=3,
-                                 pool_terrain_chance=self.pool_terrain_chance,
+                                 pool_terrain_amount=self.pool_terrain_amount,
                                  pool_terrain_growth=self.pool_terrain_growth,
-                                 line_terrain_chance=self.line_terrain_chance,
                                  line_terrain_amount=self.line_terrain_amount,
+                                 corner_terrain_growth=self.large_obstacle_growth,
                                  obstacle_coverage=self.obstacle_coverage,
                                  base_tile=self.base_tile)
 
     def copy(self) -> Self:
         """Returns a copy of the area. The rooms are not copied."""
-        area = Area(self.id, self.base_tile, self.allowed_obstacles, self.pool_terrain_chance, self.pool_terrain_growth,
-                    self.line_terrain_chance, self.line_terrain_amount, self.obstacle_coverage,
-                    self.large_obstacles, self.large_obstacle_amount, self.base_inaccessible_tile, self.inaccessible_tile_amount)
+        area = Area(self.id, self.name, 
+                    base_tile=self.base_tile,
+                    allowed_obstacles=self.allowed_obstacles,
+                    pool_terrain_amount=self.pool_terrain_amount,
+                    pool_terrain_growth=self.pool_terrain_growth,
+                    line_terrain_amount=self.line_terrain_amount,
+                    large_obstacle_growth=self.large_obstacle_growth,
+                    obstacle_coverage=self.obstacle_coverage,
+                    large_obstacles=self.large_obstacles,
+                    large_obstacle_amount=self.large_obstacle_amount,
+                    base_inaccessible_tile=self.base_inaccessible_tile,
+                    inaccessible_tile_amount=self.inaccessible_tile_amount)
         area.rooms = []
         return area
 
@@ -76,3 +88,9 @@ class Area():
     
     def __next__(self) -> Room:
         return next(self.rooms)
+    
+    def __str__(self) -> str:
+        return self.name
+    
+    def __repr__(self) -> str:
+        return self.name

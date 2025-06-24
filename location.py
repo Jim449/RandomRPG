@@ -15,20 +15,20 @@ class Location():
     SINGLE_TILE = 3
     REGULAR_PASSABLE = 4
     # Terrain types
-    BRIDGE_H = -27
-    BRIDGE_V = -18
+    BRIDGE_H = -45
+    BRIDGE_V = -30
     BRIDGE = -2
     ROAD = -1
     GRASS = 0
     FOREST = 1
     FENCE = 2
-    WATER = 9
-    MOUNTAIN = 18
+    WATER = 15
+    MOUNTAIN = 30
 
     def __init__(self, room, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
                  base_tile: int = 0, base_inaccessible_tile: int = None,
-                 pool_terrain_chance: float = 0.3, pool_terrain_growth: tuple[int, int] = (0, 2),
-                 line_terrain_chance: float = 0.3, line_terrain_amount: tuple[int, int] = (1, 3),
+                 pool_terrain_amount: tuple[int, int] = (-1, 2), pool_terrain_growth: tuple[int, int] = (0, 2),
+                 line_terrain_amount: tuple[int, int] = (-1, 2), corner_terrain_growth: tuple[int, int] = (0, 1),
                  obstacle_coverage: tuple[float, float] = (0.2, 0.4)):
         """Creates a new location.
         
@@ -40,10 +40,9 @@ class Location():
             gap: The size of the entrance.
             base_tile: The base tile of the location.
             base_inaccessible_tile: A non-passable tile which will be placed across the entire location at creation start.
-            pool_terrain_chance: The chance of a pool terrain being placed.
+            pool_terrain_amount: The minimum and maximum amount of pool terrains being placed. Amount is chosen uniformly. Negative values translate to 0.
             pool_terrain_growth: The minimum and maximum number of expansions for a pool terrain. Applies to both large corner terrain and interior terrain.
-            line_terrain_chance: The chance of a line terrain being placed.
-            line_terrain_amount: The minimum and maximum number of line terrain being placed.
+            line_terrain_amount: The minimum and maximum number of line terrain being placed. Amount is chosen uniformly. Negative values translate to 0.
             obstacle_coverage: The minimum and maximum percentage of the location that can be occupied by single tile obstacles.
         """
         self.width = width
@@ -54,10 +53,10 @@ class Location():
         self.base_inaccessible_tile = base_inaccessible_tile
         self.min_obstacle_coverage = obstacle_coverage[0]
         self.max_obstacle_coverage = obstacle_coverage[1]
-        self.pool_terrain_chance = pool_terrain_chance
+        self.pool_terrain_amount = pool_terrain_amount
         self.pool_terrain_growth = pool_terrain_growth
-        self.line_terrain_chance = line_terrain_chance
         self.line_terrain_amount = line_terrain_amount
+        self.corner_terrain_growth = corner_terrain_growth
         self.pool_terrain_allowed = []
         self.line_terrain_allowed = []
         self.single_tile_terrain_allowed = []
@@ -80,25 +79,31 @@ class Location():
     
     def get_terrain(self, x: int, y: int) -> int:
         """Returns the terrain at the given coordinates"""
+        if x < 0 or y < 0:
+            raise IndexError("No negative indices allowed")
         return self.terrain[y][x]
     
     def get_passable(self, x: int, y: int) -> bool:
         """Returns True if the terrain at the given coordinates is passable"""
+        if x < 0 or y < 0:
+            raise IndexError("No negative indices allowed")
         return self.terrain[y][x] <= 0
     
     def get_terrain_type_at(self, x: int, y: int) -> int:
         """Returns the type of terrain at the given coordinates,
         disregarding the rotation of the terrain"""
+        if x < 0 or y < 0:
+            raise IndexError("No negative indices allowed")
         return self.get_terrain_type(self.terrain[y][x])
     
     def get_terrain_type(self, terrain: int) -> int:
         """Returns the type of terrain.
         The type is the same for all rotations."""
         if terrain >= Location.WATER:
-            terrain_type = terrain - terrain % 9
-        elif terrain >= Location.BRIDGE_H and terrain <= Location.BRIDGE_H + 8:
+            terrain_type = terrain - terrain % 15
+        elif terrain >= Location.BRIDGE_H and terrain < Location.BRIDGE_H + 15:
             terrain_type = Location.BRIDGE_H
-        elif terrain >= Location.BRIDGE_V and terrain <= Location.BRIDGE_V + 8:
+        elif terrain >= Location.BRIDGE_V and terrain < Location.BRIDGE_V + 15:
             terrain_type = Location.BRIDGE_V
         else:
             terrain_type = terrain
@@ -315,7 +320,7 @@ class Location():
             else:
                 self.terrain[y][x] = Location.GRASS
 
-    def expand_edge_pools(self, ignore_passability: bool = False) -> None:
+    def expand_edge_pools(self, min_expansions: int = 0, max_expansions: int = 1, ignore_passability: bool = False) -> None:
         """Expands water and mountain terrain from edges toward center in 2x2 pools"""
         # Find water and mountain terrain on edges
         edge_terrain_positions = []
@@ -338,7 +343,7 @@ class Location():
 
         # For each water/mountain terrain found on edges, try to expand inward
         for edge_x, edge_y, terrain_type in edge_terrain_positions:
-            self.expand_pool(edge_x, edge_y, terrain_type, ignore_passability=ignore_passability)
+            self.expand_pool(edge_x, edge_y, terrain_type, min_expansions=min_expansions, max_expansions=max_expansions, ignore_passability=ignore_passability)
 
     def expand_pool(self, start_x: int, start_y: int, terrain_type: int,
                     min_expansions: int = 1, max_expansions: int = 4,
@@ -520,7 +525,107 @@ class Location():
                 for x, y, original in existing_terrain:
                     self.terrain[y][x] = original
         return success
+    
+
+    def place_pool(self, pool_coords: list[tuple[int, int]],
+                   terrain: int,
+                   allow_addition: bool = True,
+                   allow_extension: bool = True,
+                   erased_terrain: int = None,
+                   check_only: bool = False,
+                   check_passability: bool = False,
+                   avoid_bridges: bool = False) -> tuple[bool, bool]:
+        """Places a 2x2 pool of terrain. Can be used to place pool-type terrain
+        or overwrite existing pool-type terrain with arbitrary terrain.
+        Returns a tuple of booleans. The first is True if a pool could be placed.
+        The second is True if the pool was a new addition
+        and False if it was an extension of existing pool terrain.
+        If a pool couldn't be placed, the second return value will be None.
+
+        Args:
+            pool_coords: list of coordinates to place the pool
+            terrain: terrain type to place
+            allow_addition: if True, allow adding new, isolated terrain
+            allow_extension: if True, allow extending existing pool terrain
+            erased_terrain: if provided, replace existing pool terrain of this type. No other terrain can be replaced
+            check_only: if True, terrain is not actually placed
+            check_passability: if True, check if all passable terrain is connected
+            avoid_bridges: if True, avoid placing terrain next to bridges
+        """
+        north, east, south, west = self.get_box_border(pool_coords)
+        terrain_count = 0
+        erased_count = 0
+        existing_terrain = []
+        success = True
+        new_addition = True
+
+        for x, y in pool_coords:
+            replaced_terrain = self.get_terrain_type_at(x, y)
+            on_edge = (north == 0 or east == self.width - 1 or south == self.height - 1 or west == 0)
+            existing_terrain.append((x, y, replaced_terrain))
+            
+            if on_edge and replaced_terrain != terrain:
+                return (False, None)
+            
+            if replaced_terrain == terrain:
+                terrain_count += 1
+                new_addition = False
+            elif erased_terrain is not None: 
+                if replaced_terrain == erased_terrain:
+                    erased_count += 1
+                else:
+                    return (False, None)
+            elif erased_terrain is None:
+                if not self.is_passable(replaced_terrain):
+                    return (False, None)
         
+        if erased_terrain is not None and erased_count == 0:
+            return (False, None)
+        if not allow_extension and not new_addition:
+            return (False, None)
+        
+        # Try placing the terrain
+        for x, y in pool_coords:
+            self.terrain[y][x] = terrain
+        
+        frame = [(west, north - 1), (east, north - 1),
+                 (west, south + 1), (east, south + 1),
+                 (west - 1, north), (west - 1, south),
+                 (east + 1, north), (east + 1, south)]
+        
+        for x, y in frame:
+            frame_terrain = self.get_terrain(x, y)
+
+            # Failure if pool is next to bridge
+            if avoid_bridges and self.get_terrain_expansion_type(frame_terrain) == Location.EXPAND_BRIDGE:
+                success = False
+                break
+            # Failure if erasure causes invalid 1-width pool
+            if erased_terrain is not None and not self.validate_pool(x, y):
+                success = False
+                break
+            # Frame terrain is accounted for when checking for new addition
+            if new_addition and frame_terrain == terrain:
+                new_addition = False
+
+        if new_addition and not allow_addition:
+            success = False
+        elif not new_addition and not allow_extension:
+            success = False
+
+        if success and check_passability:
+            success = self.is_terrain_connected()
+
+        # Revert
+        if not success or check_only:
+            for x, y, original in existing_terrain:
+                self.terrain[y][x] = original
+        
+        if success:
+            return (True, new_addition)
+        else:
+            return (False, None)
+
     def get_layout(self) -> str:
         layout = ""
         for y in range(self.height):
@@ -553,10 +658,8 @@ class Location():
             layout += "\n"
         return layout
     
-    def create_line_terrain(self, terrain_type: int, min_amount: int = 1, max_amount: int = 3) -> None:
+    def create_line_terrain(self, terrain_type: int, amount: int = 1) -> None:
         """Creates terrain that extends in straight lines"""
-        amount = random.randint(min_amount, max_amount)
-        
         for _ in range(amount):
             # Find a random interior passable location for terrain start
             interior_cells = []
@@ -644,64 +747,94 @@ class Location():
         # If no single hole works, remove the terrain altogether
         for x, y in terrain_cells:
             self.terrain[y][x] = self.base_tile
-    
+
     def rotate_obstacle(self, x: int, y: int) -> None:
         """Replaces the obstacle with a rotated version,
         depending on how the obstacle borders to other types of terrain.
         Only works for obstacles that are placed in 2x2 pools.
-        Assumes the obstacle has no more than 2 borders to other types of terrain."""
-        obstacle = self.get_terrain(x, y)
-        directions = ((0, -1), (1, 0), (0, 1), (-1, 0))
-        surroundings = [None, None, None, None]
+        Assumes the obstacle has no more than 2 borders to other types of terrain.
+        Replaces obstacle number with obstacle number + rotation.
 
-        for i, (dx, dy) in enumerate(directions):
+        There are 14 possible rotations:
+        8 outward rotations, where the obstacle neighbors different types of terrain
+        orthagonally. Numbered 1 to 8 starting with north,
+        rotating clockwise in eights.
+        4 inward rotations, where the obstacle neighbors different types of terrain
+        diagonally. Numbered 9 to 12 starting with northeast,
+        rotating clockwise in fourths.
+        2 double inward rotations, where the obstacle neighbors different terrain
+        diagonally on both sides. Not used yet."""
+        obstacle = self.get_terrain(x, y)
+        straight = ((0, -1), (1, 0), (0, 1), (-1, 0))
+        diagonal = ((1, -1), (1, 1), (-1, 1), (-1, -1))
+        straight_surroundings = [None, None, None, None]
+        diagonal_surroundings = [None, None, None, None]
+
+        for i, (dx, dy) in enumerate(straight):
             try:
-                surroundings[i] = self.get_terrain_type(self.get_terrain(x + dx, y + dy))
+                straight_surroundings[i] = self.get_terrain_type_at(x + dx, y + dy)
+                # Treating bridges as water so that bridges don't cause shorelines
+                if obstacle == Location.WATER and straight_surroundings[i] in (Location.BRIDGE_H, Location.BRIDGE_V):
+                    straight_surroundings[i] = Location.WATER
             except IndexError:
-                surroundings[i] = obstacle
+                straight_surroundings[i] = obstacle
         
-        # Check for north, consider northeast and northwest
-        if obstacle != surroundings[0]:
-            if obstacle != surroundings[1]:
-                self.terrain[y][x] = obstacle + 2
-            elif obstacle != surroundings[3]:
-                self.terrain[y][x] = obstacle + 8
-            else:
-                self.terrain[y][x] = obstacle + 1
-        # Otherwise, check for south
-        elif obstacle != surroundings[2]:
-            if obstacle != surroundings[1]:
-                self.terrain[y][x] = obstacle + 4
-            elif obstacle != surroundings[3]:
-                self.terrain[y][x] = obstacle + 6
-            else:
-                self.terrain[y][x] = obstacle + 5
-        # Otherwise, check for east
-        elif obstacle != surroundings[1]:
-            self.terrain[y][x] = obstacle + 3
-        # Finally, check for west
-        elif obstacle != surroundings[3]:
-            self.terrain[y][x] = obstacle + 7
+        for i, (dx, dy) in enumerate(diagonal):
+            try:
+                diagonal_surroundings[i] = self.get_terrain_type_at(x + dx, y + dy)
+                if obstacle == Location.WATER and diagonal_surroundings[i] in (Location.BRIDGE_H, Location.BRIDGE_V):
+                    diagonal_surroundings[i] = Location.WATER
+            except IndexError:
+                diagonal_surroundings[i] = obstacle
         
-        # I guess that's it. There's a lot of if-statements,
-        # so there might be a better way to do it.
-        # Yeah, that works for now.
-        # But there's actually even more variants I need to consider.
-        # For instance, an obstacle with free space to the northwest,
-        # it's going to need a northwest slope.
-        # Except no free space should shine through,
-        # so it's not a regular northwest slope.
-        # Based on my algorithm, I should only need 4 of these special shapes.
-        # A tile cannot have free space in two diagonal directions.
+        if obstacle != straight_surroundings[0] and obstacle != straight_surroundings[3]:
+            self.terrain[y][x] = obstacle + 8
+            return
+        
+        # Treating north as 1, each one eight step clockwise adds 1
+        # I've checked northwest. Therefore, if north but not northeast,
+        # I can deduce north
+        for i in range(4):
+            if i < 3 and obstacle != straight_surroundings[i] and obstacle != straight_surroundings[i + 1]:
+                self.terrain[y][x] = obstacle + 2*i + 2
+                return
+            elif obstacle != straight_surroundings[i]:
+                # Accounting for a special case
+                # where I want to split a mountain into two
+                if (obstacle != diagonal_surroundings[(i+1)%4]) \
+                    or ():
+                    self.terrain[y][x] = obstacle + 2*i + 2
+                elif obstacle != diagonal_surroundings[(i+2)%4]:
+                    addition = 2*i if i > 0 else 8
+                    self.terrain[y][x] = obstacle + addition
+                else:
+                    self.terrain[y][x] = obstacle + 2*i + 1
+                return
+        
+        if obstacle in (Location.BRIDGE_H, Location.BRIDGE_V):
+            return
+        
+        # Checking for double diagonal slopes
+        if obstacle != diagonal_surroundings[0] and obstacle != diagonal_surroundings[2]:
+            self.terrain[y][x] = obstacle + 13
+            return
+        elif obstacle != diagonal_surroundings[1] and obstacle != diagonal_surroundings[3]:
+            self.terrain[y][x] = obstacle + 14
+            return
+        
+        # Checking for single diagonal slopes
+        # I'll number these 9 to 12
+        for i, (dx, dy) in enumerate(diagonal):
+            if obstacle != diagonal_surroundings[i]:
+                self.terrain[y][x] = obstacle + 9 + i
+                return
 
     def rotate_all_obstacles(self) -> None:
         """Rotates all obstacles in the location."""
         for y in range(self.height):
             for x in range(self.width):
                 terrain = self.get_terrain(x, y)
-                # if self.get_terrain(x, y) >= Location.WATER:
-                # Water should be rotated but I don't have the images yet
-                if terrain >= Location.MOUNTAIN or terrain <= Location.BRIDGE_V + 8:
+                if terrain >= Location.WATER or terrain < Location.BRIDGE_V + 15:
                     self.rotate_obstacle(x, y)
 
 
@@ -755,7 +888,7 @@ class Location():
                        max_search_distance: int = 13) -> tuple[bool, int, int]:
         """Searches in a straight line for passable terrain.
         Returns True if passable terrain is found, False otherwise.
-        Returns the distance to the passable terrain, or -1 if no passable terrain is found.
+        Returns the distance to the passable terrain, or 100 if no passable terrain is found.
         Returns the terrain type of the passable terrain.
         """
         current_x, current_y = start_x, start_y
@@ -763,12 +896,14 @@ class Location():
         for step in range(1, max_search_distance + 1):
             current_x += step_x
             current_y += step_y
-                
+            
             if current_x < 0 or current_x >= self.width or current_y < 0 or current_y >= self.height:
-                return (False, -1, None)
+                # Returning a high distance should be easier to work with than None
+                # as it will make the outskirts check succeed
+                return (False, 100, None)
             elif self.get_passable(current_x, current_y):
                 return (True, step, self.terrain[current_y][current_x])
-        return (False, -1, None)
+        return (False, 100, None)
 
     def check_bridge_viability(self, base: list[tuple[int, int]], direction: int, max_search_distance: int = 13) -> tuple[bool, int]:
         """Checks if bridge construction is viable from a 2x2 starting point.
@@ -831,7 +966,9 @@ class Location():
             outskirts_distances.append(outskirts_distance)
 
         # Check if both found passable terrain at the same distance
-        if distances[0] == distances[1] and terrain_types[0] == terrain_types[1]:
+        if distances[0] == distances[1] \
+            and self.get_terrain_expansion_type(terrain_types[0]) == Location.REGULAR_PASSABLE \
+                and self.get_terrain_expansion_type(terrain_types[1]) == Location.REGULAR_PASSABLE:
             bridge_length = distances[0]
             
             # If passable terrain was found next to the bridge, bridge is not viable
@@ -858,8 +995,12 @@ class Location():
         Returns True if at least one bridge was created.
         """
         success = False
-        if self.try_erase_terrain_pool(box, Location.ROAD, Location.WATER,
-                                       check_only=True, avoid_bridges=True):
+        if self.place_pool(box, Location.ROAD,
+                           allow_addition=True, allow_extension=True,
+                           erased_terrain=Location.WATER,
+                           check_only=True,
+                           check_passability=False,
+                           avoid_bridges=True):
             for direction in (Location.NORTH, Location.EAST, Location.SOUTH, Location.WEST):
                 bridge_viability = self.check_bridge_viability(box, direction)
                 if bridge_viability[0] and bridge_viability[1] > 2:
@@ -873,9 +1014,9 @@ class Location():
 
     def connect_passable_terrain(self) -> bool:
         """Connects all passable terrain in the location."""
-        for tries in range(1000):
-            x = random.randrange(self.width)
-            y = random.randrange(self.height)
+        for tries in range(500):
+            x = random.randrange(self.width - 1)
+            y = random.randrange(self.height - 1)
 
             if random.random() < 0.5:
                 if self.boundary_check(x, y, northwest_gap=1, southeast_gap=2):
@@ -885,10 +1026,17 @@ class Location():
                         # print(f"Bridge created (attempt {tries})")
                         # print(self.get_layout())                        
                         # input()
-            elif self.get_terrain(x, y) == Location.ROAD:
-                self.erase_pool(x, y, Location.ROAD, Location.WATER,
-                                min_expansions=3, max_expansions=9,
-                                avoid_bridges=True)
+            else: # self.get_terrain(x, y) == Location.ROAD:
+                self.place_pool(self.get_coordinates_box(x, y), Location.ROAD,
+                                allow_addition=True, allow_extension=True,
+                                erased_terrain=self.base_inaccessible_tile,
+                                check_passability=False, avoid_bridges=True)
+                    # print(f"Land created (attempt {tries})")
+                    # print(self.get_layout())
+                    # input()
+                # self.erase_pool(x, y, Location.ROAD, Location.WATER,
+                #                 min_expansions=3, max_expansions=9,
+                #                 avoid_bridges=True)
                 # print(f"Land created (attempt {tries})")
                 # print(self.get_layout())
                 # input()
@@ -897,21 +1045,78 @@ class Location():
         return False
     
 
+    def build_pools(self, amount: int, allowed_terrain: list[int],
+                    allow_addition: bool = True, allow_extension: bool = True,
+                    erased_terrain: int = None, check_passability: bool = False,
+                    avoid_bridges: bool = False) -> None:
+        tries = amount * 100
+
+        while amount > 0 and tries > 0:
+            x = random.randrange(1, self.width - 2)
+            y = random.randrange(1, self.height - 2)
+            terrain = random.choice(allowed_terrain)
+            
+            if self.place_pool(self.get_coordinates_box(x, y), terrain,
+                               allow_addition=allow_addition,
+                               allow_extension=allow_extension,
+                               erased_terrain=erased_terrain,
+                               check_only=False,
+                               check_passability=check_passability,
+                               avoid_bridges=avoid_bridges):
+                amount -= 1
+            tries -= 1
+    
+
+    def add_random_land(self) -> None:
+        """Randomly adds a new pool of land."""
+        while True:
+            x = random.randrange(1, self.width - 2)
+            y = random.randrange(1, self.height - 2)
+            if self.place_pool(self.get_coordinates_box(x, y), Location.ROAD,
+                                allow_addition=True,
+                                allow_extension=False,
+                                erased_terrain=Location.WATER,
+                                check_passability=False):
+                return
+
+
     def create_regular_location(self) -> None:
         """Modifies the location, using passable terrain as a base.
         Places obstacles of different types."""
         self.terrain = [[self.base_tile for x in range(self.width)] for y in range(self.height)]
         self.create_edges(self.room, self.gap)
-        self.expand_edge_pools(ignore_passability=False)
+        # self.expand_edge_pools(min_expansions=self.corner_terrain_growth[0], max_expansions=self.corner_terrain_growth[1], ignore_passability=False)
 
         obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
+        pool_amount = random.randint(self.pool_terrain_amount[0], self.pool_terrain_amount[1])
+        pool_growth = random.randint(self.pool_terrain_growth[0], self.pool_terrain_growth[1])
+        line_amount = random.randint(self.line_terrain_amount[0], self.line_terrain_amount[1])
+
+        # Switching to build_pools hasn't worked out well
+        # It does allow for decent terrain in the great mountains
+        # where I have a lot of pools
+        # I get that labyrinth vibe, similar to forest rooms
+        # It doesn't work well elsewhere
+        # I'm increasing the number and tries
+        # TODO: I'll switch algortithm later
         
-        if random.random() < self.pool_terrain_chance and len(self.pool_terrain_allowed) > 0:
-            self.add_pool_terrain(self.get_obstacle(self.pool_terrain_allowed, None))
+        self.build_pools(pool_amount, self.pool_terrain_allowed,
+                         allow_addition=True, allow_extension=False,
+                         check_passability=True)
         
-        if random.random() < self.line_terrain_chance and len(self.line_terrain_allowed) > 0:
+        self.build_pools(pool_growth, self.pool_terrain_allowed,
+                         allow_addition=False, allow_extension=True,
+                         check_passability=True)
+
+        # if pool_amount > 0:
+        #     for _ in range(pool_amount):
+        #         self.add_pool_terrain(self.get_obstacle(self.pool_terrain_allowed, None),
+        #                               min_expansions=self.pool_terrain_growth[0],
+        #                               max_expansions=self.pool_terrain_growth[1])
+        
+        if line_amount > 0:
             self.create_obstacles(obstacle_coverage / 2)
-            self.create_line_terrain(self.get_obstacle(self.line_terrain_allowed, None))
+            self.create_line_terrain(self.get_obstacle(self.line_terrain_allowed, None), line_amount)
             self.create_obstacles(obstacle_coverage / 2)
         else:
             self.create_obstacles(obstacle_coverage)
@@ -925,15 +1130,28 @@ class Location():
         while True:
             self.terrain = [[self.base_inaccessible_tile for x in range(self.width)] for y in range(self.height)]
             self.create_edges(self.room, self.gap)
-            # TODO I should expand those edge pools,
-            # but I have to ensure all water terrain is valid
-            # So I'll need a different function 
-            # self.expand_edge_pools(ignore_passability=True)
-            # TODO There are still some issues where water erasal
-            # destroys pools and leaves 1x1 tiles.
+
+            # If there's only one entrance, all land starts as connected
+            # and nothing more is generated
+            # Add new, unconnected land in order to force some terrain generation
+            if self.room.count_paths() == 1:
+                self.add_random_land()
 
             if self.connect_passable_terrain():
                 break
+        
+        pool_amount = random.randint(self.pool_terrain_amount[0], self.pool_terrain_amount[1])
+        pool_growth = random.randint(self.pool_terrain_growth[0], self.pool_terrain_growth[1])
+
+        self.build_pools(pool_amount, self.pool_terrain_allowed,
+                         allow_addition=True, allow_extension=False,
+                         check_passability=False, erased_terrain=self.base_inaccessible_tile,
+                         avoid_bridges=False)
+        
+        self.build_pools(pool_growth, self.pool_terrain_allowed,
+                         allow_addition=False, allow_extension=True,
+                         check_passability=False, erased_terrain=self.base_inaccessible_tile,
+                         avoid_bridges=False)
         
         obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
         self.create_obstacles(obstacle_coverage)
