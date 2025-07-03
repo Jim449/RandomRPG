@@ -168,6 +168,8 @@ class Blueprint():
 
         Raises:
             IndexError"""
+        if x < 0 or y < 0:
+            raise IndexError("Negative coordinates not allowed")
         return self.map[y][x]
 
     def get_random_location(self, empty: bool = False) -> Room:
@@ -202,10 +204,7 @@ class Blueprint():
         elif dir == Room.WEST:
             nx = x - 1
 
-        if nx == -1 or ny == -1:
-            raise IndexError
-        else:
-            return self.get_location(nx, ny)
+        return self.get_location(nx, ny)
 
     def connect_rooms(self, x: int, y: int, dir: int, connection: int = Room.OPEN) -> None:
         """Create a two-way path between adjacent rooms"""

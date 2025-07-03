@@ -19,6 +19,8 @@ class Room():
         self.trail: int = trail
         self.paths: list[int] = [0, 0, 0, 0]
         self.terrain: list[int] = [None, None, None, None]
+        self.entrances: list[tuple[int, int]] = [(6, 9), (6, 9), (6, 9), (6, 9)]
+        self.terrain_growth: list[int] = [0, 0, 0, 0]
         self.connections: list[int] = []
         self.area_connection: int = -1
         self.exchanged: bool = False
@@ -65,10 +67,11 @@ class Room():
         elif linked_room in self.connections:
             self.connections.remove(linked_room)
     
-    def set_terrain(self, dir: int, value: int) -> None:
+    def set_terrain(self, dir: int, value: int, growth: int = 5) -> None:
         """Sets the terrain in a direction
         Direction is increased by 1/8 clockwise, so NORTH (0) is treated as NORTHEAST"""
         self.terrain[dir] = value
+        self.terrain_growth[dir] = growth
 
     def set_area_connection(self, area: int) -> None:
         """Sets the area connection for the room"""
@@ -111,6 +114,18 @@ class Room():
     def set_inaccessible_tile(self, tile: int) -> None:
         """Sets the inaccessible tile of the room"""
         self.inaccessible_tile = tile
+    
+    def get_entrance_start(self, dir: int) -> int:
+        if self.paths[dir] == Room.OPEN:
+            return self.entrances[dir][0]
+        else:
+            return (self.entrances[dir][0] + self.entrances[dir][1]) // 2
+
+    def get_entrance_end(self, dir: int) -> int:
+        if self.paths[dir] == Room.OPEN:
+            return self.entrances[dir][1]
+        else:
+            return (self.entrances[dir][0] + self.entrances[dir][1]) // 2
 
     def clear(self) -> None:
         """Clears paths, number and area"""
@@ -153,9 +168,9 @@ if __name__ == "__main__":
     room.set_terrain(Room.SOUTH, Location.MOUNTAIN)
     room.set_terrain(Room.WEST, Location.MOUNTAIN)
     # room.set_inaccessible_tile(Location.WATER)
-    room.create_location(allowed_obstacles=(Location.FOREST, Location.MOUNTAIN, Location.FENCE),
+    room.create_location(allowed_obstacles=(Location.FOREST, Location.MOUNTAIN),
                          pool_terrain_amount=(0, 0), pool_terrain_growth=(0, 4),
-                         line_terrain_amount=(1, 3),
+                         line_terrain_amount=(0, 0),
                          obstacle_coverage=(0.2, 0.2))
     print(room.location.get_raw_layout())
     print()

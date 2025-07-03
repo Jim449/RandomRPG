@@ -66,50 +66,59 @@ class Game():
         blueprint = Blueprint.main_map_blueprint()
         print(blueprint.get_layout())
         
+        # This should get a lot of mountain terrain
+        # Note, there are 13x13=169 internal cells
+        # so I can't add too many obstacles
         area_0 = Area(0, "Great mountains",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.FOREST, Location.MOUNTAIN),
                       pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(40, 80),
+                      pool_terrain_growth=(0, 25),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(8, 8),
+                      large_obstacle_growth=(15, 20),
                       obstacle_coverage=(0.1, 0.2),
                       large_obstacles=(Location.MOUNTAIN,),
                       large_obstacle_amount=12,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Should get a lot of mountain terrain
+        # but less than the great mountains
+        # Gets some lakes
         area_1 = Area(1, "Highlands",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.FOREST, Location.WATER, Location.MOUNTAIN),
                       pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(30, 60),
+                      pool_terrain_growth=(0, 20),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(2, 2),
+                      large_obstacle_growth=(10, 15),
                       obstacle_coverage=(0.1, 0.2),
                       large_obstacles=(Location.MOUNTAIN,),
                       large_obstacle_amount=6,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Should get mostly lake areas with some mountains around them
         area_2 = Area(2, "Coastline",
                       base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST, Location.WATER),
+                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
                       pool_terrain_amount=(0, 1),
-                      pool_terrain_growth=(30, 60),
+                      pool_terrain_growth=(0, 15),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(0, 0),
+                      large_obstacle_growth=(5, 10),
                       obstacle_coverage=(0.1, 0.2),
                       large_obstacles=(Location.MOUNTAIN,),
                       large_obstacle_amount=2,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=6)
         
+        # Should get a lot of forest terrain
+        # as well as a few ponds and some fences
         area_3 = Area(3, "Forest",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.FOREST, Location.FENCE, Location.WATER),
                       pool_terrain_amount=(-1, 2),
-                      pool_terrain_growth=(0, 5),
+                      pool_terrain_growth=(0, 10),
                       line_terrain_amount=(-1, 3),
                       large_obstacle_growth=(0, 0),
                       obstacle_coverage=(0.3, 0.4),
@@ -118,37 +127,44 @@ class Game():
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Should get the densest forest terrain
+        # Not much variation, except for a large lake somewhere
         area_4 = Area(4, "Deep forest",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.FOREST, Location.WATER),
                       pool_terrain_amount=(0, 0),
                       pool_terrain_growth=(10, 20),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(3, 3),
+                      large_obstacle_growth=(15, 20),
                       obstacle_coverage=(0.4, 0.5),
                       large_obstacles=(Location.WATER,),
                       large_obstacle_amount=1,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Should get a lot of water and some lake areas
+        # Water shouldn't expand much
+        # Forest terrain is dense and there may be some fences
         area_5 = Area(5, "River",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.FENCE, Location.FOREST, Location.WATER),
                       pool_terrain_amount=(0, 0),
                       pool_terrain_growth=(5, 10),
                       line_terrain_amount=(-1, 3),
-                      large_obstacle_growth=(0, 0),
-                      obstacle_coverage=(0.3, 0.4),
+                      large_obstacle_growth=(0, 5),
+                      obstacle_coverage=(0.2, 0.3),
                       large_obstacles=(Location.WATER,),
                       large_obstacle_amount=6,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=2)
         
+        # Should get sparse forest terrain
+        # as well as some ponds and fences
         area_6 = Area(6, "Meadows",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.WATER, Location.FOREST, Location.FENCE),
                       pool_terrain_amount=(-1, 2),
-                      pool_terrain_growth=(0, 5),
+                      pool_terrain_growth=(0, 10),
                       line_terrain_amount=(-1, 3),
                       large_obstacle_growth=(0, 0),
                       obstacle_coverage=(0.1, 0.2),
@@ -157,26 +173,31 @@ class Game():
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Should get a lot of mountain terrain,
+        # focusing on internal mountains over edge mountains
+        # Vegetation is sparse
         area_7 = Area(7, "Hills",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
-                      pool_terrain_amount=(0, 2),
-                      pool_terrain_growth=(10, 20),
+                      pool_terrain_amount=(1, 3),
+                      pool_terrain_growth=(0, 20),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(0, 0),
+                      large_obstacle_growth=(0, 5),
                       obstacle_coverage=(0.1, 0.2),
                       large_obstacles=(Location.MOUNTAIN,),
                       large_obstacle_amount=3,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
 
+        # Should get multiple lakes surrounded by mountains
+        # Land areas will get less water and more mountains
         area_8 = Area(8, "Lakeside",
                       base_tile=Location.GRASS,
                       allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
                       pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(20, 40),
+                      pool_terrain_growth=(0, 25),
                       line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(1, 1),
+                      large_obstacle_growth=(5, 10),
                       obstacle_coverage=(0.2, 0.3),
                       large_obstacles=(Location.MOUNTAIN,),
                       large_obstacle_amount=4,

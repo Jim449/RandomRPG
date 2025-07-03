@@ -358,14 +358,14 @@ class Maze(Blueprint):
                 pass
         return expansion_count
 
-    def place_inaccessible_tile_in_room(self, room: Room, tile: int) -> None:
+    def place_inaccessible_tile_in_room(self, room: Room, tile: int, growth: int) -> None:
         """Sets the inaccessible tile of a room.
         If large corner terrain is not set, sets it to the inaccessible tile.
         Expands to adjacent rooms corner terrain.
         """
         room.set_inaccessible_tile(tile)
         for dir in range(4):
-            self.place_obstacle_in_room(room, dir, tile, overwrite=False)
+            self.place_obstacle_in_room(room, dir, tile, overwrite=False, growth=growth)
 
     def place_inaccessible_tiles_in_area(self, area: Area) -> None:
         """Places inaccessible tiles in the rooms of the area.
@@ -376,7 +376,7 @@ class Maze(Blueprint):
 
         for room in rooms:
             if room.inaccessible_tile is None and amount > 0:
-                self.place_inaccessible_tile_in_room(room, area.base_inaccessible_tile)
+                self.place_inaccessible_tile_in_room(room, area.base_inaccessible_tile, area.large_obstacle_growth)
                 amount -= 1
                 if amount == 0:
                     return
@@ -388,13 +388,13 @@ class Maze(Blueprint):
             if area.inaccessible_tile_amount > 0:
                 self.place_inaccessible_tiles_in_area(area)
 
-    def place_obstacle_in_room(self, room: Room, direction: int, obstacle: int, overwrite: bool = False) -> None:
+    def place_obstacle_in_room(self, room: Room, direction: int, obstacle: int, growth: int, overwrite: bool = False) -> None:
         """Places an obstacle in the corner of a room.
         Directions NESW are treated as NE, SE, SW, NW.
         Obstacles will extend to adjacent rooms."""
         if overwrite == False and room.terrain[direction] != None:
             return
-        room.terrain[direction] = obstacle
+        room.set_terrain(direction, obstacle, growth)
         clockwise = ((Room.NORTH, Room.EAST), (Room.EAST, Room.SOUTH), (Room.SOUTH, Room.WEST), (Room.WEST, Room.NORTH))
         directions = ((0, -1), (1, 0), (0, 1), (-1, 0))
         for i, (travel, obstacle_dir) in enumerate(clockwise):
@@ -411,7 +411,7 @@ class Maze(Blueprint):
                 x += directions[travel_dir][0]
                 y += directions[travel_dir][1]
                 current_room = self.get_location(x, y)
-                current_room.terrain[obstacle_dir] = obstacle
+                current_room.set_terrain(obstacle_dir, obstacle, growth)
             except IndexError:
                 pass
 
@@ -422,19 +422,17 @@ class Maze(Blueprint):
             if not area.large_obstacles or area.large_obstacle_amount == 0:
                 continue
             
-            rooms = area.get_rooms().copy()
-            shuffle(rooms)
             placed = 0
 
-            for room in rooms:
+            while placed < area.large_obstacle_amount:
+                room = choice(area.get_rooms())
                 direction = randint(0, 3)
                 obstacle = choice(area.large_obstacles)
 
                 if room.terrain[direction] is None:
-                    self.place_obstacle_in_room(room, direction, obstacle)
+                    self.place_obstacle_in_room(room, direction, obstacle,
+                                                area.large_obstacle_growth)
                     placed += 1
-                    if placed == area.large_obstacle_amount:
-                        break
     
     def construct_locations(self) -> None:
         """Constructs the locations of the maze"""
