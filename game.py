@@ -2,24 +2,37 @@ from blueprint import Blueprint
 from area import Area
 from maze import Maze, IllegalMazeError
 from location import Location
-from player import Player
+from unit import Unit
 from room import Room
+from combat_input import CombatInput
+from random import randrange
 import pygame
 import sys
 
 class Game():
     def __init__(self):
-        self.maze = None
-        self.current_room = None
-        self.current_location = None
-        self.player = None
-
         # Pygame settings
         self.CELL_SIZE = 32
         self.GRID_SIZE = 15
         self.FPS = 30
+        self.FADEOUT_SPEED = 5
         self.SCREEN_WIDTH = self.GRID_SIZE * self.CELL_SIZE
         self.SCREEN_HEIGHT = self.GRID_SIZE * self.CELL_SIZE
+        self.COMBAT_MAP = pygame.image.load("resources/backgrounds/Plains.png")
+        self.POINTER = pygame.image.load("resources/other/Pointer.png")
+
+        self.maze = None
+        self.current_room = None
+        self.current_location = None
+        self.player = None
+        self.combat = None
+        self.combat_input = None
+        self.fadeout = 0
+        self.fadeout_direction = 0
+        self.encounter_interval = (10, 50)
+        self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
+        self.fade = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        self.fade.fill((0, 0, 0, 0))
         
         self.TERRAIN = {
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
@@ -235,7 +248,8 @@ class Game():
         halfpoint = (self.GRID_SIZE - 1) // 2
         for coordinates in ((halfpoint, 0), (halfpoint, self.GRID_SIZE - 1), (0, halfpoint), (self.GRID_SIZE - 1, halfpoint)):
             if self.current_location.get_terrain(coordinates[0], coordinates[1]) <= 0:
-                self.player = Player(coordinates[0], coordinates[1])
+                self.player = Unit(pygame.image.load("resources/people/player_small.png"),
+                                   x=coordinates[0], y=coordinates[1])
                 break
     
     def set_room(self, room: Room):
@@ -260,9 +274,12 @@ class Game():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
+                # Handle combat input
+                elif self.combat and self.combat_input:
+                    self.handle_combat_input(event.key)
         
-        # Handle continuous movement
-        if self.player and not self.player.moving:
+        # Handle continuous movement (only when not in combat)
+        if self.player and not self.player.moving and not self.combat:
             keys = pygame.key.get_pressed()
             
             # Check for speed boost
@@ -296,8 +313,206 @@ class Game():
                 elif not self.collision_check(self.player.x + 1, self.player.y):
                     self.player.start_movement((1, 0))
 
+    def handle_combat_input(self, key):
+        """Handle keyboard input during combat"""
+        mode = self.combat_input.get_mode()
+        
+        # Navigation keys
+        if key == pygame.K_UP or key == pygame.K_w:
+            self.combat_input.increase_y(-1)
+        elif key == pygame.K_DOWN or key == pygame.K_s:
+            self.combat_input.increase_y(1)
+        elif key == pygame.K_LEFT or key == pygame.K_a:
+            self.combat_input.increase_x(-1)
+        elif key == pygame.K_RIGHT or key == pygame.K_d:
+            self.combat_input.increase_x(1)
+        
+        # Action keys
+        elif key == pygame.K_l:
+            if mode == CombatInput.MENU:
+                choice = self.combat_input.get_menu_choice()
+                if choice == "Attack":
+                    self.combat_input.set_mode(CombatInput.TARGETING)
+                    print("Attack selected")
+                elif choice == "Defend":
+                    # TODO: Implement defend action
+                    print("Defend selected")
+                elif choice == "Cast spell":
+                    self.combat_input.set_mode(CombatInput.SPELL_SELECT)
+                elif choice == "Run":
+                    # TODO: Implement run action
+                    print("Run selected")
+                    self.end_encounter()
+            elif mode == CombatInput.TARGETING:
+                enemy = self.combat_input.get_enemy()
+                if enemy:
+                    print(f"Attacking enemy at position ({enemy.x}, {enemy.y})")
+                    # TODO: Implement actual attack logic
+                    if self.combat_input.remove_enemy(enemy):
+                        self.end_encounter()
+                    else:
+                        self.combat_input.set_mode(CombatInput.MENU)
+            elif mode == CombatInput.SPELL_SELECT:
+                spell = self.combat_input.get_spell_choice()
+                if spell:
+                    print(f"Selected spell: {spell}")
+                    # TODO: Implement spell casting logic
+                    self.combat_input.set_mode(CombatInput.MENU)
+        
+        # Back/Cancel key
+        elif key == pygame.K_p:
+            self.combat_input.undo_mode()
+
+    def draw_combat_ui(self):
+        """Draw the combat UI window at the bottom of the screen"""
+        if not self.combat_input or self.combat_input.get_mode() in (CombatInput.INACTIVE, CombatInput.CLEANUP):
+            return
+        
+        # UI dimensions
+        ui_width = 480
+        ui_height = 128
+        ui_x = 0
+        ui_y = self.SCREEN_HEIGHT - ui_height
+        
+        # Menu subwindow dimensions  
+        menu_subwindow_width = 80
+        menu_subwindow_height = ui_height
+        menu_subwindow_x = ui_x
+        menu_subwindow_y = ui_y
+        
+        # Spell subwindow dimensions
+        spell_subwindow_width = 320
+        spell_subwindow_height = ui_height
+        spell_subwindow_x = menu_subwindow_x + menu_subwindow_width
+        spell_subwindow_y = ui_y
+        
+        # Colors
+        ui_bg_color = (40, 40, 40, 200)  # Dark gray with transparency
+        subwindow_bg_color = (20, 20, 20, 220)  # Darker gray
+        text_color = (255, 255, 255)  # White
+        highlight_color = (100, 150, 255)  # Light blue for selected option
+        
+        # Draw main UI background
+        ui_surface = pygame.Surface((ui_width, ui_height), pygame.SRCALPHA)
+        ui_surface.fill(ui_bg_color)
+        self.screen.blit(ui_surface, (ui_x, ui_y))
+        
+        # Draw menu subwindow background
+        menu_subwindow_surface = pygame.Surface((menu_subwindow_width, menu_subwindow_height), pygame.SRCALPHA)
+        menu_subwindow_surface.fill(subwindow_bg_color)
+        self.screen.blit(menu_subwindow_surface, (menu_subwindow_x, menu_subwindow_y))
+        
+        if self.combat_input.get_mode() == CombatInput.TARGETING:
+            self.screen.blit(self.POINTER, self.combat_input.get_target_pointer())
+        elif self.combat_input.get_mode() == CombatInput.MASS_TARGETING:
+            for pointer in self.combat_input.get_mass_pointers():
+                self.screen.blit(self.POINTER, pointer)
+        
+        # Draw menu options in the menu subwindow
+        if self.combat_input.has_mode(CombatInput.MENU):
+            menu_options = self.combat_input.menu_options
+            selected_index = self.combat_input.menu_y
+            
+            # Calculate text positioning
+            text_start_y = menu_subwindow_y + 10
+            line_height = 25
+            text_margin = 5
+            
+            for i, option in enumerate(menu_options):
+                # Determine text color based on selection
+                current_text_color = highlight_color if i == selected_index else text_color
+                
+                # Render text
+                text_surface = self.font.render(option, True, current_text_color)
+                text_y = text_start_y + (i * line_height)
+                
+                # Draw selection background for highlighted option
+                if i == selected_index:
+                    selection_rect = pygame.Rect(menu_subwindow_x + 2, text_y - 2, menu_subwindow_width - 4, line_height - 2)
+                    pygame.draw.rect(self.screen, (50, 80, 150, 100), selection_rect)
+                
+                # Draw text
+                self.screen.blit(text_surface, (menu_subwindow_x + text_margin, text_y))
+        
+        # Draw spell subwindow if spell selection is active
+        if self.combat_input.has_mode(CombatInput.SPELL_SELECT):
+            # Draw spell subwindow background
+            spell_subwindow_surface = pygame.Surface((spell_subwindow_width, spell_subwindow_height), pygame.SRCALPHA)
+            spell_subwindow_surface.fill(subwindow_bg_color)
+            self.screen.blit(spell_subwindow_surface, (spell_subwindow_x, spell_subwindow_y))
+            
+            # Get spell options and selection
+            spell_options = self.combat_input.spell_options
+            selected_x = self.combat_input.submenu_x
+            selected_y = self.combat_input.submenu_y
+            
+            # Calculate grid layout
+            grid_cols = 4
+            grid_rows = 4
+            cell_width = (spell_subwindow_width - 20) // grid_cols  # 20px total margin
+            cell_height = (spell_subwindow_height - 20) // grid_rows  # 20px total margin
+            start_x = spell_subwindow_x + 10
+            start_y = spell_subwindow_y + 10
+            
+            # Draw spell grid
+            for row in range(grid_rows):
+                for col in range(grid_cols):
+                    spell_name = spell_options[row][col]
+                    
+                    # Calculate cell position
+                    cell_x = start_x + (col * cell_width)
+                    cell_y = start_y + (row * cell_height)
+                    
+                    # Determine if this cell is selected
+                    is_selected = (col == selected_x and row == selected_y)
+                    
+                    # Draw selection background for highlighted spell
+                    if is_selected:
+                        selection_rect = pygame.Rect(cell_x, cell_y, cell_width - 2, cell_height - 2)
+                        pygame.draw.rect(self.screen, (50, 80, 150, 100), selection_rect)
+                    
+                    # Draw spell name if it exists
+                    if spell_name:
+                        # Determine text color
+                        current_text_color = highlight_color if is_selected else text_color
+                        
+                        # Render text (truncate if too long)
+                        display_name = spell_name
+                        if len(display_name) > 10:  # Adjust based on cell width
+                            display_name = display_name[:7] + "..."
+                        
+                        text_surface = self.font.render(display_name, True, current_text_color)
+                        
+                        # Center text in cell
+                        text_x = cell_x + (cell_width - text_surface.get_width()) // 2
+                        text_y = cell_y + (cell_height - text_surface.get_height()) // 2
+                        
+                        self.screen.blit(text_surface, (text_x, text_y))
+
+    def draw_combat(self):
+        """Draws the combat map"""
+        self.screen.blit(self.COMBAT_MAP, (0, 0))
+
+        for enemy in self.combat_input.get_enemy_list():
+            position = self.combat_input.enemy_grid[enemy.y][enemy.x]
+            self.screen.blit(enemy.sprite, position)
+
+        if self.fadeout_direction != 0:
+            self.fade.set_alpha(self.fadeout)
+            self.screen.blit(self.fade, (0, 0))
+            
+            if self.fadeout == 0:
+                self.combat_input.set_mode(CombatInput.MENU)
+                self.fadeout_direction = 0
+            elif self.fadeout == 255:
+                self.combat = False
+                self.fadeout_direction = 0
+        
+        # Draw combat UI
+        self.draw_combat_ui()
+
     def draw_location(self):
-        """Draw the current location terrain on screen"""
+        """Draws the current location terrain on screen"""
         if not self.current_location:
             return
         
@@ -317,28 +532,24 @@ class Game():
         if self.player:
             self.screen.blit(self.player.sprite, (self.player.x * self.CELL_SIZE + self.player.x_offset, self.player.y * self.CELL_SIZE + self.player.y_offset))
         
-        # Draw UI elements
         self.draw_ui()
+
+        if self.fadeout_direction != 0:
+            self.fade.set_alpha(self.fadeout)
+            self.screen.blit(self.fade, (0, 0))
 
     def draw_ui(self):
         """Draw UI elements like area name and room coordinates"""
         if not self.current_room:
             return
-            
-        # Get area name
-        area_name = "Unknown Area"
-        if hasattr(self.maze, 'areas') and self.current_room.area < len(self.maze.areas):
-            area = self.maze.areas[self.current_room.area]
-            area_name = area.name
-        
-        # Get room coordinates
+
+        area = self.maze.areas[self.current_room.area]
+        area_name = area.name
         room_coords = f"Room ({self.current_room.x}, {self.current_room.y})"
         
-        # Render text
         area_text = self.font.render(area_name, True, self.ui_text_color)
         coords_text = self.font.render(room_coords, True, self.ui_text_color)
         
-        # Calculate dimensions for background
         max_width = max(area_text.get_width(), coords_text.get_width())
         total_height = area_text.get_height() + coords_text.get_height() + 10  # 10px padding
         
@@ -362,6 +573,43 @@ class Game():
         self.screen.blit(area_text, (text_x, area_y))
         self.screen.blit(coords_text, (text_x, coords_y))
 
+    def encounter(self):
+        self.combat = True
+        self.combat_input = CombatInput()
+        
+        # Create some enemies at random
+        enemy_count = randrange(1, 7)
+        enemies = []
+        for i in range(enemy_count):
+            enemies.append(Unit(pygame.image.load("resources/enemies/Red_spider.png")))
+        self.combat_input.place_enemies(enemies)
+        self.combat_input.set_spells(["Fireball", "Heal"])
+        # That should be enough for now. Replace with something more robust later
+
+        self.fadeout_direction = -1
+        self.fadeout = 255 + self.FADEOUT_SPEED * self.fadeout_direction
+    
+    def end_encounter(self):
+        # Fades out the combat screen
+        # Combat will end in draw_combat when fadeout is complete
+        # I should add some victory text before this
+        self.combat_input.set_mode(CombatInput.INACTIVE)
+        self.fadeout_direction = 1
+        self.fadeout = 0 + self.FADEOUT_SPEED * self.fadeout_direction
+
+    def tick_encounter(self):
+        self.encounter_countdown -= 1
+        if self.encounter_countdown <= 0:
+            self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
+            self.encounter()
+    
+    def tick_fadeout(self):
+        self.fadeout += self.FADEOUT_SPEED * self.fadeout_direction
+        if self.fadeout < 0:
+            self.fadeout = 0
+        elif self.fadeout > 255:
+            self.fadeout = 255
+
     def run(self):
         """Main game loop"""
         while self.running:
@@ -369,10 +617,17 @@ class Game():
             self.handle_events()
             
             if self.player:
-                self.player.move()
+                if self.player.move():
+                    self.tick_encounter()
+            
+            if self.fadeout_direction != 0:
+                self.tick_fadeout()
             
             # Draw everything
-            self.draw_location()
+            if self.combat:
+                self.draw_combat()
+            else:
+                self.draw_location()
             
             # Update display
             pygame.display.flip()
