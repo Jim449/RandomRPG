@@ -1,0 +1,14 @@
+{
+    "name": "Wolf",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 5,
+        "Defense": 0,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 4,
+        "Stamina": 0,
+        "Rank": 6,
+        "Constitution": 1
+    }
+}

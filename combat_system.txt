@@ -1,0 +1,135 @@
+The combat system is going to look like this:
+
+1. In the main loop, check player.move.
+This returns true whenever the player moves 1 grid cell.
+game.tick_encounter is called.
+
+2. In game.tick_encounter, check the number of steps until encounter.
+game.encounter is called.
+
+3. In game.encounter, creatures are created.
+This should check the current area for encounter information.
+Creatures should fetched from the storage.
+The storage should use json files to get creature information.
+This is either done at setup or on demand.
+For the moment, I initialize creatures in game.encounter.
+A combat_input object is created.
+A combat object is created with the combat_input.
+A fadeout and fadeout_direction is set.
+
+4. In tick_fadeout, fadeout level is changed each frame.
+
+5. In game.draw_combat, the combat map and creatures are drawn.
+game.draw_combat_ui is called, drawing the ui.
+The fadeout_direction is checked.
+If not 0, the fade overlay is drawn with the fadeout level.
+If fadeout is 0, combat should start.
+I do this by switching the combat_input mode to INACTIVE.
+The INACTIVE mode signals that no input is accepted
+but that the combat logic is allowed to continue.
+I may want to switch to a better name.
+I will initialize combat_input with the PREPARATION mode.
+It signals input is not accepted
+and that combat logic is paused.
+
+CHANGES
+Now that I have animation, I'd better make use of it.
+The fadeout should be an animation, meaning it will pause the combat logic.
+This should eliminate the need for game.tick_fadeout.
+I shouldn't place unnecessary logic in game.draw_combat.
+I should change the combat_input mode using animation callback.
+Anyways, first I need to ensure my combat is running properly.
+
+MORE CHANGES
+I should add a message field.
+The message field should replace the combat menu.
+when input is not accepted.
+I should add an combat_input mode for this.
+
+6. In the main loop, I call game.process_combat.
+Game process combat can only proceed if there are no animations.
+I update animations in game.process_combat
+but I can do that from the main loop instead.
+Given that the mode is INACTIVE, game.process combat calls combat.process_turn.
+
+7. In combat.process_turn, combat should progress by one step.
+First, all enemies decide their actions.
+The combat_input mode is set to MENU.
+This activates the combat main menu.
+
+8. In the main loop, handle_events is called.
+This forwards to handle_combat_inputs as needed.
+In handle_combat_inputs, the game listens to keys
+and reacts according to the combat_input mode.
+As a result, the combat_input mode may change.
+When a player action has been determined,
+I call combat.select_action.
+This should change the combat phase.
+Then I change the mode changes to INACTIVE.
+
+9. Now, from game.process_combat,
+combat.process_turn should be called.
+As the phase has changed to USE_ACTION,
+combat.process turn must find the next unit to act
+and perform the action.
+The Combat instance should store relevant information about the action.
+
+10. Now, in game.process_combat,
+the stored information should be processed.
+This will probably start new animations.
+
+11. As the animation handler contains ongoing animations,
+game.process_combat must wait.
+The animation handler should be called from the main loop each frame.
+
+12. As animation is complete,
+game.process can call combat.process_turn.
+This repeats previous steps until all units have acted.
+
+13. Now, combat.process_turn should switch phase to END_TURN.
+This causes all active effect to tick down.
+
+14. game.process_combat may create animations
+in response to effect tick down.
+Multiple animations may start at the same time.
+
+CHANGES
+More precisely, I may want slight offsets to prevent overlapping animations.
+The animation handler should schedule animations in a smart way.
+I don't have to implement this yet since effects are an advanced part of combat.
+
+15. combat.process_turn goes on to the NEXT_ROUND phase.
+This replenishes all unit actions.
+It doesn't do much and could be combined with END_TURN.
+No animations are expected.
+combat.process_turn enters the DECIDE_ACTION phase.
+
+16. In DECIDE_ACTION, all enemies select their actions.
+The combat_input switches mode to MENU,
+allowing the player to select an action.
+We've returned to a previous step and combat continues to loop.
+
+17. The combat must regularily check for defeated units.
+game.process_combat must regularily pick up on this.
+It shouldn't check when there's an ongoing animation.
+When any unit is defeated, a death animation should play.
+When animation ends, the unit is removed from the combat field.
+This should ensure units are not removed prematurely,
+ruining the tension.
+
+18. When all enemies have been defeated,
+combat should switch to the VICTORY phase.
+game.process_combat should pick up on this.
+If the player has been defeated,
+combat should switch to DEFEAT phase.
+
+CHANGES
+Victory should trigger some kind of message,
+followed by a fadeout animation.
+Defeat should trigger a message,
+followed by a return to the main menu.
+
+MORE CHANGES
+I don't even have a main menu!
+But there's no rush.
+I can just quit the program and start a new game. 

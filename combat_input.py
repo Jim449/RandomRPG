@@ -8,13 +8,26 @@ class CombatInput:
     SPELL_SELECT = 4
     CONFIRMATION = 5
     CLEANUP = 6
+    PREPARATION = 7
 
-    def __init__(self):
+    COMBAT_FORMATION = {6: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (0, 2)],
+                        5: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)],
+                        4: [(0, 0), (2, 0), (0, 1), (1, 1)],
+                        3: [(1, 0), (0, 1), (1, 1)],
+                        2: [(0, 1), (1, 1)],
+                        1: [(1, 0)]}
+    
+    COMBAT_POSITIONS = [[(80, 128), (208, 128), (336, 128)],
+                        [(144, 172), (272, 172)],
+                        [(208, 236)]]
+
+    def __init__(self, hero: Unit, enemies: list[Unit]):
+        self.hero = hero
+        self.enemies = enemies
+        self.units = [hero] + enemies
         self.mode_stack = []
-        self.mode = self.INACTIVE
-        self.enemy_grid = [[(80, 128), (208, 128), (336, 128)], [(144, 172), (272, 172)], [(208, 236)]]
-        self.enemies = [[None, None, None], [None, None], [None]]
-        self.enemy_count = 0
+        self.mode = self.PREPARATION
+        self.enemy_grid = [[None, None, None], [None, None], [None]]
         self.target_x = 0
         self.target_y = 0
         self.menu_options = ["Attack", "Defend", "Cast spell", "Run"]
@@ -26,17 +39,7 @@ class CombatInput:
         self.submenu_x = 0
         self.submenu_y = 0
         self.confirmation_y = 0
-
-        self.COMBAT_POSITIONS = {6: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (0, 2)],
-                                 5: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)],
-                                 4: [(0, 0), (2, 0), (0, 1), (1, 1)],
-                                 3: [(1, 0), (0, 1), (1, 1)],
-                                 2: [(0, 1), (1, 1)],
-                                 1: [(1, 0)]}
-
-        # This leaves me with 15x5 free cells at the bottom of the screen
-        # But realistically, I can only use 15x4
-        # Which translates to 480x128px
+        self.place_enemies(enemies)
 
     def increase_target_x(self, direction: int) -> bool:
         """Traverses the enemy grid in the given direction RIGHT = 1 or LEFT = -1.
@@ -45,14 +48,16 @@ class CombatInput:
         start_x = self.target_x
         self.target_x += direction
 
-        while self.target_x != start_x:
+        for i in range(3):
             if self.target_x < 0:
-                self.target_x = len(self.enemies[self.target_y]) - 1
-            elif self.target_x >= len(self.enemies[self.target_y]):
+                self.target_x = len(self.enemy_grid[self.target_y]) - 1
+            elif self.target_x >= len(self.enemy_grid[self.target_y]):
                 self.target_x = 0
             
-            if self.enemies[self.target_y][self.target_x] is not None:
+            if self.enemy_grid[self.target_y][self.target_x] is not None:
                 return True
+            elif self.target_x == start_x:
+                return False
             
             self.target_x += direction
         return False
@@ -68,18 +73,18 @@ class CombatInput:
             self.target_y -= 1
             direction = 1
         
-        while True:
+        for i in range(3):
             self.target_y += direction
             
             if self.target_y < 0:
-                self.target_y = len(self.enemies) - 1
-            elif self.target_y >= len(self.enemies):
+                self.target_y = len(self.enemy_grid) - 1
+            elif self.target_y >= len(self.enemy_grid):
                 self.target_y = 0
             
-            if self.target_x >= len(self.enemies[self.target_y]):
-                self.target_x = len(self.enemies[self.target_y]) - 1
+            if self.target_x >= len(self.enemy_grid[self.target_y]):
+                self.target_x = len(self.enemy_grid[self.target_y]) - 1
 
-            if self.enemies[self.target_y][self.target_x] is not None:
+            if self.enemy_grid[self.target_y][self.target_x] is not None:
                 return
             elif self.increase_target_x(1):
                 return
@@ -87,13 +92,13 @@ class CombatInput:
     def place_enemies(self, opponents: list[Unit]) -> None:
         """Places enemies in the enemy grid based on the number of enemies.
         Sets the pointer to the first enemy."""
-        self.enemy_count = len(opponents)
 
-        for i, position in enumerate(self.COMBAT_POSITIONS[self.enemy_count]):
+        for i, position in enumerate(self.COMBAT_FORMATION[len(opponents)]):
             x = position[0]
             y = position[1]
-            opponents[i].set_position(x, y)
-            self.enemies[y][x] = opponents[i]
+            self.enemy_grid[y][x] = opponents[i]
+            coordinates = self.COMBAT_POSITIONS[y][x]
+            opponents[i].set_position(coordinates[0], coordinates[1])
         
         self.target_x = 0
         self.target_y = 0
@@ -101,9 +106,15 @@ class CombatInput:
     
     def remove_enemy(self, enemy: Unit) -> bool:
         """Removes an enemy from the enemy grid."""
-        self.enemies[enemy.y][enemy.x] = None
-        self.enemy_count -= 1
-        if self.enemy_count == 0:
+        for row in self.enemy_grid:
+            for cell in row:
+                if cell == enemy:
+                    cell = None
+                    break
+        self.enemies.remove(enemy)
+        self.units.remove(enemy)
+        
+        if len(self.enemies) == 0:
             self.mode = self.CLEANUP
             return True
         elif self.get_enemy() is None:
@@ -112,36 +123,34 @@ class CombatInput:
     
     def clear_enemies(self) -> None:
         """Clears all enemies from the enemy grid."""
-        for y in range(len(self.enemies)):
-            for x in range(len(self.enemies[y])):
-                self.enemies[y][x] = None
+        for y in range(len(self.enemy_grid)):
+            for x in range(len(self.enemy_grid[y])):
+                self.enemy_grid[y][x] = None
+        self.enemies.clear()
     
     def get_enemy(self) -> Unit:
         """Returns the selected enemy."""
-        return self.enemies[self.target_y][self.target_x]
+        return self.enemy_grid[self.target_y][self.target_x]
     
     def get_enemy_list(self) -> list[Unit]:
         """Returns a list of all enemies."""
-        enemies = []
-        for y in range(len(self.enemies)):
-            for x in range(len(self.enemies[y])):
-                if self.enemies[y][x] is not None:
-                    enemies.append(self.enemies[y][x])
-        return enemies
+        return self.enemies
+    
+    def get_enemy_count(self) -> int:
+        """Returns the number of enemies."""
+        return len(self.enemies)
     
     def get_target_pointer(self) -> tuple[int, int]:
         """Returns the target pointer."""
-        position = self.enemy_grid[self.target_y][self.target_x]
+        position = self.get_enemy().get_position()
         return (position[0] + 16, position[1] - 32)
     
     def get_mass_pointers(self) -> list[tuple[int, int]]:
         """Returns targeting pointers for all enemies."""
         pointers = []
-        for y in range(len(self.enemy_grid)):
-            for x in range(len(self.enemy_grid[y])):
-                if self.enemy_grid[y][x] is not None:
-                    position = self.enemy_grid[y][x]
-                    pointers.append((position[0] + 16, position[1] - 32))
+        for enemy in self.enemies:
+            position = enemy.get_position()
+            pointers.append((position[0] + 16, position[1] - 32))
         return pointers
     
     def cycle_menu(self, direction: int) -> None:
@@ -239,3 +248,19 @@ class CombatInput:
         elif self.mode == self.SPELL_SELECT:
             self.increase_submenu_y(direction)
     
+    def sort_by_speed(self) -> list[Unit]:
+        """Returns a list of characters sorted by speed."""
+        sorted = self.units.copy()
+        sorted.sort(key=lambda c: c.combat_speed, reverse=True)
+        return sorted
+    
+    def get_first_ready_character(self) -> Unit:
+        """Get the first character that is ready to act (has a selected action).
+        
+        Returns:
+            Unit: The first ready character, or None if none are ready"""
+        for unit in self.sort_by_speed():
+            if unit.can_act():
+                print(f"{unit.name} with speed {unit.combat_speed} is ready to act")
+                return unit
+        return None

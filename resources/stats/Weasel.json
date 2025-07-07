@@ -1,0 +1,14 @@
+{
+    "name": "Weasel",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 4,
+        "Defense": 0,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 4,
+        "Stamina": 0,
+        "Rank": 5,
+        "Constitution": 1
+    }
+}

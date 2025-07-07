@@ -5,6 +5,10 @@ from location import Location
 from unit import Unit
 from room import Room
 from combat_input import CombatInput
+from combat import Combat
+from animation_handler import AnimationHandler
+from mechanics.characterStats import CharacterStats
+from mechanics.storage import Storage
 from random import randrange
 import pygame
 import sys
@@ -27,9 +31,11 @@ class Game():
         self.player = None
         self.combat = None
         self.combat_input = None
+        self.storage = Storage()
+        self.animation_handler = AnimationHandler()
         self.fadeout = 0
         self.fadeout_direction = 0
-        self.encounter_interval = (10, 50)
+        self.encounter_interval = (10, 30)
         self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
         self.fade = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         self.fade.fill((0, 0, 0, 0))
@@ -248,8 +254,12 @@ class Game():
         halfpoint = (self.GRID_SIZE - 1) // 2
         for coordinates in ((halfpoint, 0), (halfpoint, self.GRID_SIZE - 1), (0, halfpoint), (self.GRID_SIZE - 1, halfpoint)):
             if self.current_location.get_terrain(coordinates[0], coordinates[1]) <= 0:
-                self.player = Unit(pygame.image.load("resources/people/player_small.png"),
-                                   x=coordinates[0], y=coordinates[1])
+                self.player = Unit("Hero", pygame.image.load("resources/people/player_small.png"),
+                                   team=1, grid_x=coordinates[0], grid_y=coordinates[1])
+                hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
+                              "Agility": 3, "Intelligence": 0, "Stamina": 0,
+                              "Rank": 4, "Constitution": 4}
+                self.player.set_stats(CharacterStats(hero_stats))
                 break
     
     def set_room(self, room: Room):
@@ -275,7 +285,7 @@ class Game():
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 # Handle combat input
-                elif self.combat and self.combat_input:
+                elif self.combat:
                     self.handle_combat_input(event.key)
         
         # Handle continuous movement (only when not in combat)
@@ -289,32 +299,33 @@ class Game():
             
             # Handle movement keys
             if keys[pygame.K_w]:
-                if self.transition_check(self.player.x, self.player.y - 1):
+                if self.transition_check(self.player.grid_x, self.player.grid_y - 1):
                     self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.NORTH))
-                    self.player.y = self.GRID_SIZE - 1
-                elif not self.collision_check(self.player.x, self.player.y - 1):
+                    self.player.set_grid_position(y=self.GRID_SIZE - 1)
+                elif not self.collision_check(self.player.grid_x, self.player.grid_y - 1):
                     self.player.start_movement((0, -1))
             elif keys[pygame.K_s]:
-                if self.transition_check(self.player.x, self.player.y + 1):
+                if self.transition_check(self.player.grid_x, self.player.grid_y + 1):
                     self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.SOUTH))
-                    self.player.y = 0
-                elif not self.collision_check(self.player.x, self.player.y + 1):
+                    self.player.set_grid_position(y=0)
+                elif not self.collision_check(self.player.grid_x, self.player.grid_y + 1):
                     self.player.start_movement((0, 1))
             elif keys[pygame.K_a]:
-                if self.transition_check(self.player.x - 1, self.player.y):
+                if self.transition_check(self.player.grid_x - 1, self.player.grid_y):
                     self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.WEST))
-                    self.player.x = self.GRID_SIZE - 1
-                elif not self.collision_check(self.player.x - 1, self.player.y):
+                    self.player.set_grid_position(x=self.GRID_SIZE - 1)
+                elif not self.collision_check(self.player.grid_x - 1, self.player.grid_y):
                     self.player.start_movement((-1, 0))
             elif keys[pygame.K_d]:
-                if self.transition_check(self.player.x + 1, self.player.y):
+                if self.transition_check(self.player.grid_x + 1, self.player.grid_y):
                     self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.EAST))
-                    self.player.x = 0
-                elif not self.collision_check(self.player.x + 1, self.player.y):
+                    self.player.set_grid_position(x=0)
+                elif not self.collision_check(self.player.grid_x + 1, self.player.grid_y):
                     self.player.start_movement((1, 0))
 
     def handle_combat_input(self, key):
         """Handle keyboard input during combat"""
+        
         mode = self.combat_input.get_mode()
         
         # Navigation keys
@@ -332,6 +343,7 @@ class Game():
             if mode == CombatInput.MENU:
                 choice = self.combat_input.get_menu_choice()
                 if choice == "Attack":
+                    self.player.selected_action = self.storage.get_action("Attack")
                     self.combat_input.set_mode(CombatInput.TARGETING)
                     print("Attack selected")
                 elif choice == "Defend":
@@ -347,21 +359,63 @@ class Game():
                 enemy = self.combat_input.get_enemy()
                 if enemy:
                     print(f"Attacking enemy at position ({enemy.x}, {enemy.y})")
-                    # TODO: Implement actual attack logic
-                    if self.combat_input.remove_enemy(enemy):
-                        self.end_encounter()
-                    else:
-                        self.combat_input.set_mode(CombatInput.MENU)
+                    self.combat.select_action(self.player.selected_action, enemy)
+                    self.combat_input.set_mode(CombatInput.INACTIVE)
+                else:
+                    self.combat_input.undo_mode()
             elif mode == CombatInput.SPELL_SELECT:
                 spell = self.combat_input.get_spell_choice()
                 if spell:
                     print(f"Selected spell: {spell}")
                     # TODO: Implement spell casting logic
-                    self.combat_input.set_mode(CombatInput.MENU)
+                    self.combat_input.undo_mode()
+                else:
+                    self.combat_input.undo_mode()
         
         # Back/Cancel key
         elif key == pygame.K_p:
             self.combat_input.undo_mode()
+
+    def process_combat(self):
+        """Process combat logic and handle animations."""
+        if self.animation_handler.has_animations():
+            self.animation_handler.update()
+        elif self.combat.phase == Combat.PHASE_FADEOUT:
+            # Do nothing until the fadeout is complete
+            # I may change how the fadeout works later
+            pass
+        elif self.combat.phase == Combat.PHASE_VICTORY:
+            print("Start combat fadeout")
+            self.combat.phase = Combat.PHASE_FADEOUT
+            self.end_encounter()
+        elif self.combat.phase == Combat.PHASE_DEFEAT:
+            # TODO: Implement defeat logic
+            # For now, I'll just let the game run forever
+            pass
+        elif self.combat.has_defeated_units():
+            # Create a death animation for defeated units
+            # I need to remove these units when the animation is complete
+            # Since an animation starts, I shouldn't enter this block again
+            death_animation_duration = 60  # 2 seconds at 30 FPS
+            self.animation_handler.create_idle_animation(
+                duration_frames=death_animation_duration,
+                callback=self.combat.remove_defeated_units)
+        elif self.combat_input.get_mode() == CombatInput.INACTIVE:
+            self.combat.process_turn()
+
+            # This will do for now but I need to determine
+            # which animations to play, if any
+            if self.combat.active_unit:
+                # Create an action animation (attack, spell cast, etc.)
+                action_animation_duration = 30  # 1 second at 30 FPS
+                self.animation_handler.create_idle_animation(
+                    duration_frames=action_animation_duration)
+
+            if self.combat.current_targets:
+                # Create a targeting/effect animation
+                effect_animation_duration = 20  # 0.67 seconds at 30 FPS
+                self.animation_handler.create_idle_animation(
+                    duration_frames=effect_animation_duration)
 
     def draw_combat_ui(self):
         """Draw the combat UI window at the bottom of the screen"""
@@ -494,18 +548,17 @@ class Game():
         self.screen.blit(self.COMBAT_MAP, (0, 0))
 
         for enemy in self.combat_input.get_enemy_list():
-            position = self.combat_input.enemy_grid[enemy.y][enemy.x]
-            self.screen.blit(enemy.sprite, position)
+            self.screen.blit(enemy.sprite, enemy.get_position())
 
         if self.fadeout_direction != 0:
             self.fade.set_alpha(self.fadeout)
             self.screen.blit(self.fade, (0, 0))
             
             if self.fadeout == 0:
-                self.combat_input.set_mode(CombatInput.MENU)
+                self.combat_input.set_mode(CombatInput.INACTIVE)
                 self.fadeout_direction = 0
             elif self.fadeout == 255:
-                self.combat = False
+                self.combat = None
                 self.fadeout_direction = 0
         
         # Draw combat UI
@@ -530,7 +583,7 @@ class Game():
                     self.screen.blit(self.TERRAIN[terrain_type], (pixel_x, pixel_y))
 
         if self.player:
-            self.screen.blit(self.player.sprite, (self.player.x * self.CELL_SIZE + self.player.x_offset, self.player.y * self.CELL_SIZE + self.player.y_offset))
+            self.screen.blit(self.player.sprite, self.player.get_position())
         
         self.draw_ui()
 
@@ -574,16 +627,21 @@ class Game():
         self.screen.blit(coords_text, (text_x, coords_y))
 
     def encounter(self):
-        self.combat = True
-        self.combat_input = CombatInput()
-        
         # Create some enemies at random
         enemy_count = randrange(1, 7)
         enemies = []
+        spider_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
+                        "Agility": 3, "Intelligence": 0, "Stamina": 0,
+                        "Rank": 4, "Constitution": 1}
         for i in range(enemy_count):
-            enemies.append(Unit(pygame.image.load("resources/enemies/Red_spider.png")))
-        self.combat_input.place_enemies(enemies)
+            enemy = Unit("Red spider", pygame.image.load("resources/enemies/Red_spider.png"), team=0)
+            enemy.set_stats(CharacterStats(spider_stats))
+            enemy.add_action(self.storage.get_action("Attack"))
+            enemies.append(enemy)
+        
+        self.combat_input = CombatInput(self.player, enemies)
         self.combat_input.set_spells(["Fireball", "Heal"])
+        self.combat = Combat(self.combat_input)
         # That should be enough for now. Replace with something more robust later
 
         self.fadeout_direction = -1
@@ -593,7 +651,7 @@ class Game():
         # Fades out the combat screen
         # Combat will end in draw_combat when fadeout is complete
         # I should add some victory text before this
-        self.combat_input.set_mode(CombatInput.INACTIVE)
+        self.combat_input.set_mode(CombatInput.CLEANUP)
         self.fadeout_direction = 1
         self.fadeout = 0 + self.FADEOUT_SPEED * self.fadeout_direction
 
@@ -613,7 +671,6 @@ class Game():
     def run(self):
         """Main game loop"""
         while self.running:
-            # Handle events
             self.handle_events()
             
             if self.player:
@@ -623,8 +680,8 @@ class Game():
             if self.fadeout_direction != 0:
                 self.tick_fadeout()
             
-            # Draw everything
             if self.combat:
+                self.process_combat()
                 self.draw_combat()
             else:
                 self.draw_location()

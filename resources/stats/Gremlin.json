@@ -1,0 +1,14 @@
+{
+    "name": "Gremlin",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 4,
+        "Defense": 1,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 5,
+        "Constitution": 1
+    }
+}

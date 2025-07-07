@@ -1,0 +1,14 @@
+{
+    "name": "Armadillo",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 4,
+        "Defense": 2,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 6,
+        "Constitution": 1
+    }
+}

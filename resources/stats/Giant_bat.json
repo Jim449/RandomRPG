@@ -1,0 +1,14 @@
+{
+    "name": "Giant bat",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 4,
+        "Defense": 0,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 5,
+        "Stamina": 0,
+        "Rank": 6,
+        "Constitution": 1
+    }
+}

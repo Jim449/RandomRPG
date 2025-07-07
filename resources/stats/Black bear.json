@@ -1,0 +1,14 @@
+{
+    "name": "Black bear",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 6,
+        "Defense": 2,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 8,
+        "Constitution": 1
+    }
+}

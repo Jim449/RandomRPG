@@ -1,0 +1,14 @@
+{
+    "name": "Goblin",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 5,
+        "Defense": 0,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 5,
+        "Constitution": 1
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "name": "Boar",
+    "moveset": ["Attack"],
+    "stats": {
+        "Strength": 5,
+        "Defense": 2,
+        "Intelligence": 0,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 7,
+        "Constitution": 1
+    }
+}
