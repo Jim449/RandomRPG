@@ -313,6 +313,7 @@ class Character:
             message += self.accessory.action.use(self, self)
         self.calculate_speed()
         self.action_points = self.max_action_points
+        self.display_health = self.base_stats.get_stat(self.HP)
         return message
 
     def start_round(self) -> None:

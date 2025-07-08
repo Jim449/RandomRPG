@@ -18,8 +18,8 @@ class CombatInput:
                         1: [(1, 0)]}
     
     COMBAT_POSITIONS = [[(80, 128), (208, 128), (336, 128)],
-                        [(144, 172), (272, 172)],
-                        [(208, 236)]]
+                        [(144, 182), (272, 182)],
+                        [(208, 246)]]
 
     def __init__(self, hero: Unit, enemies: list[Unit]):
         self.hero = hero
@@ -107,12 +107,15 @@ class CombatInput:
     def remove_enemy(self, enemy: Unit) -> bool:
         """Removes an enemy from the enemy grid."""
         for row in self.enemy_grid:
-            for cell in row:
+            for i, cell in enumerate(row):
                 if cell == enemy:
-                    cell = None
+                    row[i] = None
                     break
-        self.enemies.remove(enemy)
-        self.units.remove(enemy)
+        try:
+            self.enemies.remove(enemy)
+            self.units.remove(enemy)
+        except ValueError:
+            pass
         
         if len(self.enemies) == 0:
             self.mode = self.CLEANUP
@@ -143,14 +146,14 @@ class CombatInput:
     def get_target_pointer(self) -> tuple[int, int]:
         """Returns the target pointer."""
         position = self.get_enemy().get_position()
-        return (position[0] + 16, position[1] - 32)
+        return (position[0] + 20, position[1] - 32)
     
     def get_mass_pointers(self) -> list[tuple[int, int]]:
         """Returns targeting pointers for all enemies."""
         pointers = []
         for enemy in self.enemies:
             position = enemy.get_position()
-            pointers.append((position[0] + 16, position[1] - 32))
+            pointers.append((position[0] + 20, position[1] - 32))
         return pointers
     
     def cycle_menu(self, direction: int) -> None:

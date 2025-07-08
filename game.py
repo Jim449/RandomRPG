@@ -10,6 +10,7 @@ from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
 from mechanics.storage import Storage
 from random import randrange
+from animation import TextAscendAnimation, FadeAnimation
 import pygame
 import sys
 
@@ -61,6 +62,8 @@ class Game():
         
         # Initialize font for UI
         self.font = pygame.font.Font(None, 24)
+        self.combat_font = pygame.font.Font(None, 16)
+        self.health_font = pygame.font.Font(None, 24)
         self.ui_background_color = (0, 0, 0, 180)  # Semi-transparent black
         self.ui_text_color = (255, 255, 255)  # White text
     
@@ -258,7 +261,7 @@ class Game():
                                    team=1, grid_x=coordinates[0], grid_y=coordinates[1])
                 hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
                               "Agility": 3, "Intelligence": 0, "Stamina": 0,
-                              "Rank": 4, "Constitution": 4}
+                              "Rank": 4, "Constitution": 6}
                 self.player.set_stats(CharacterStats(hero_stats))
                 break
     
@@ -379,7 +382,7 @@ class Game():
     def process_combat(self):
         """Process combat logic and handle animations."""
         if self.animation_handler.has_animations():
-            self.animation_handler.update()
+            pass
         elif self.combat.phase == Combat.PHASE_FADEOUT:
             # Do nothing until the fadeout is complete
             # I may change how the fadeout works later
@@ -393,13 +396,14 @@ class Game():
             # For now, I'll just let the game run forever
             pass
         elif self.combat.has_defeated_units():
-            # Create a death animation for defeated units
-            # I need to remove these units when the animation is complete
-            # Since an animation starts, I shouldn't enter this block again
-            death_animation_duration = 60  # 2 seconds at 30 FPS
-            self.animation_handler.create_idle_animation(
-                duration_frames=death_animation_duration,
-                callback=self.combat.remove_defeated_units)
+            for unit in self.combat.defeated_units:
+                animation = FadeAnimation(
+                    unit,
+                    start_alpha=255,
+                    end_alpha=0,
+                    speed=4,
+                    callback=lambda: self.combat.remove_unit(unit))
+                self.animation_handler.add_animation(animation)
         elif self.combat_input.get_mode() == CombatInput.INACTIVE:
             self.combat.process_turn()
 
@@ -410,16 +414,33 @@ class Game():
                 action_animation_duration = 30  # 1 second at 30 FPS
                 self.animation_handler.create_idle_animation(
                     duration_frames=action_animation_duration)
-
-            if self.combat.current_targets:
-                # Create a targeting/effect animation
-                effect_animation_duration = 20  # 0.67 seconds at 30 FPS
-                self.animation_handler.create_idle_animation(
-                    duration_frames=effect_animation_duration)
+            # TODO: I'm adding a health change animation here
+            # but it's a bit too early.
+            # I should wait until the action animation is complete
+            
+            for target in self.combat.current_targets:
+                if target.health_change < 0:
+                    health_color = (255, 0, 0)
+                elif target.health_change > 0:
+                    health_color = (0, 255, 0)
+                else:
+                    continue
+                animation = TextAscendAnimation(
+                    self.screen,
+                    target.x + 32,
+                    target.y,
+                    f"{-target.health_change}",
+                    font=self.health_font,
+                    color=health_color,
+                    speed=2,
+                    fadeout=10)
+                self.animation_handler.add_animation(animation)
+                target.display_health += target.health_change
+                target.health_change = 0
 
     def draw_combat_ui(self):
         """Draw the combat UI window at the bottom of the screen"""
-        if not self.combat_input or self.combat_input.get_mode() in (CombatInput.INACTIVE, CombatInput.CLEANUP):
+        if not self.combat_input or self.combat_input.get_mode() in (CombatInput.PREPARATION, CombatInput.CLEANUP):
             return
         
         # UI dimensions
@@ -444,6 +465,7 @@ class Game():
         ui_bg_color = (40, 40, 40, 200)  # Dark gray with transparency
         subwindow_bg_color = (20, 20, 20, 220)  # Darker gray
         text_color = (255, 255, 255)  # White
+        health_color = (0, 0, 0)
         highlight_color = (100, 150, 255)  # Light blue for selected option
         
         # Draw main UI background
@@ -462,6 +484,11 @@ class Game():
             for pointer in self.combat_input.get_mass_pointers():
                 self.screen.blit(self.POINTER, pointer)
         
+        health_text = self.health_font.render(f"HP {self.player.display_health} / {self.player.get_final_stat("MaxHealth")}", True, health_color)
+        magic_text = self.health_font.render(f"MP {self.player.get_final_stat("Magic")} / {self.player.get_final_stat("MaxMagic")}", True, health_color)
+        self.screen.blit(health_text, (20, ui_y - 20))
+        self.screen.blit(magic_text, (400, ui_y - 20))
+
         # Draw menu options in the menu subwindow
         if self.combat_input.has_mode(CombatInput.MENU):
             menu_options = self.combat_input.menu_options
@@ -477,7 +504,7 @@ class Game():
                 current_text_color = highlight_color if i == selected_index else text_color
                 
                 # Render text
-                text_surface = self.font.render(option, True, current_text_color)
+                text_surface = self.combat_font.render(option, True, current_text_color)
                 text_y = text_start_y + (i * line_height)
                 
                 # Draw selection background for highlighted option
@@ -535,7 +562,7 @@ class Game():
                         if len(display_name) > 10:  # Adjust based on cell width
                             display_name = display_name[:7] + "..."
                         
-                        text_surface = self.font.render(display_name, True, current_text_color)
+                        text_surface = self.combat_font.render(display_name, True, current_text_color)
                         
                         # Center text in cell
                         text_x = cell_x + (cell_width - text_surface.get_width()) // 2
@@ -549,6 +576,7 @@ class Game():
 
         for enemy in self.combat_input.get_enemy_list():
             self.screen.blit(enemy.sprite, enemy.get_position())
+            enemy.sprite.set_alpha(enemy.get_alpha())
 
         if self.fadeout_direction != 0:
             self.fade.set_alpha(self.fadeout)
@@ -683,6 +711,7 @@ class Game():
             if self.combat:
                 self.process_combat()
                 self.draw_combat()
+                self.animation_handler.update()
             else:
                 self.draw_location()
             

@@ -1,3 +1,5 @@
+from math import floor
+
 class Animation:
     def __init__(self, duration_frames=30, callback=None):
         """
@@ -62,7 +64,7 @@ class Animation:
 class FadeAnimation(Animation):
     """Example animation that fades an object in/out."""
     
-    def __init__(self, target_object, start_alpha=255, end_alpha=0, duration_frames=30, callback=None):
+    def __init__(self, target_object, start_alpha=255, end_alpha=0, speed=1, callback=None):
         """
         Initialize a fade animation.
         
@@ -73,11 +75,12 @@ class FadeAnimation(Animation):
             duration_frames (int): Number of frames for the fade
             callback (callable): Optional function to call when animation completes
         """
-        super().__init__(duration_frames, callback)
+        super().__init__(0, callback)
         self.target_object = target_object
-        self.start_alpha = start_alpha
-        self.end_alpha = end_alpha
-        self.alpha_range = end_alpha - start_alpha
+        self.current_alpha = start_alpha
+        self.alpha_range = start_alpha - end_alpha
+        self.speed = speed
+        self.duration_frames = floor(self.alpha_range / self.speed)
         
         # Set initial alpha
         if hasattr(target_object, 'set_alpha'):
@@ -86,9 +89,8 @@ class FadeAnimation(Animation):
     def animate(self):
         """Update the fade effect."""
         if self.target_object and hasattr(self.target_object, 'set_alpha'):
-            progress = self.get_progress()
-            current_alpha = int(self.start_alpha + (self.alpha_range * progress))
-            self.target_object.set_alpha(current_alpha)
+            self.current_alpha -= self.speed
+            self.target_object.set_alpha(self.current_alpha)
 
 
 class ShakeAnimation(Animation):
@@ -133,3 +135,49 @@ class ShakeAnimation(Animation):
             if hasattr(self.target_object, 'x') and hasattr(self.target_object, 'y'):
                 self.target_object.x = self.original_pos[0]
                 self.target_object.y = self.original_pos[1]
+
+
+class TextAscendAnimation(Animation):
+    def __init__(self, screen, x, y, message, font, color=(255, 255, 255), speed=1, fadeout=1, callback=None):
+        super().__init__(0, callback)
+        self.screen = screen
+        self.x = x
+        self.y = y
+        self.message = message
+        self.font = font
+        self.color = color
+        self.speed = speed
+        self.duration_frames = floor(255 / fadeout)
+        self.fadeout = fadeout
+        self.alpha = 255
+        self.text = self.font.render(self.message, True, self.color)
+
+    def animate(self):
+        self.y -= self.speed
+        self.alpha -= self.fadeout
+        self.text.set_alpha(self.alpha)
+        self.screen.blit(self.text, (self.x, self.y))
+
+
+class TextWriteAnimation(Animation):
+    def __init__(self, screen, x, y, message, font, speed=1, delay=60, callback=None):
+        super().__init__(0, callback)
+        self.screen = screen
+        self.x = x
+        self.y = y
+        self.full_message = message
+        self.current_message = ""
+        self.font = font
+        self.speed = speed
+        self.duration_frames = len(message) * speed + delay
+        self.delay = delay
+    
+    def animate(self):
+        if self.current_message != self.full_message:
+            first_letter = self.current_frame * self.speed
+            last_letter = max((self.current_frame + 1) * self.speed, len(self.full_message))
+            self.current_message += self.full_message[first_letter:last_letter]
+        
+        text = self.font.render(self.current_message, True, (255, 255, 255, 255))
+        self.screen.blit(text, (self.x, self.y))
+        

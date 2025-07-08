@@ -17,6 +17,7 @@ class Unit(Character):
         self.base_speed: int = 2
         self.adventure_speed: int = 2
         self.speed_boost: bool = False
+        self.alpha: int = 255
         self.sprite: pygame.Surface = sprite
     
     def move(self) -> bool:
@@ -107,3 +108,11 @@ class Unit(Character):
     def get_grid_position(self) -> tuple[int, int]:
         """Returns the player's grid position."""
         return (self.grid_x, self.grid_y)
+
+    def set_alpha(self, alpha: int) -> None:
+        """Sets the unit's alpha."""
+        self.alpha = alpha
+    
+    def get_alpha(self) -> int:
+        """Returns the unit's alpha."""
+        return self.alpha

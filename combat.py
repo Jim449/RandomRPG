@@ -64,6 +64,12 @@ class Combat:
         self.defeated_units = []
         self.check_combat_end()
     
+    def remove_unit(self, unit: Unit) -> None:
+        """Removes a unit."""
+        self.combat_input.remove_enemy(unit)
+        self.defeated_units.remove(unit)
+        self.check_combat_end()
+    
     def select_action(self, action, target: Unit) -> None:
         """Selects an action for a player controlled unit."""
         self.combat_input.hero.select_action(action, target)
