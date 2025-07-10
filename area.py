@@ -1,6 +1,7 @@
 from room import Room
 from location import Location
 from typing import Self, Iterator
+import random
 
 class Area():
     def __init__(self, id: int, name: str, base_tile: int = Location.GRASS, allowed_obstacles: tuple[int] = (Location.FOREST, Location.FENCE),
@@ -46,8 +47,13 @@ class Area():
     def remove_room(self, room: Room) -> None:
         self.rooms.remove(room)
     
-    def get_rooms(self) -> list[Room]:
-        return self.rooms
+    def get_rooms(self, shuffle: bool = False) -> list[Room]:
+        if shuffle:
+            rooms = self.rooms.copy()
+            random.shuffle(rooms)
+            return rooms
+        else:
+            return self.rooms
     
     def construct_locations(self, grid_size: int = 15) -> None:
         """Constructs the locations of the area."""

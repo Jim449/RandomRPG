@@ -1,5 +1,6 @@
 import pygame
 from mechanics.character import Character
+from conversation import Conversation
 
 class Unit(Character):
     def __init__(self, name: str, sprite: pygame.Surface, 
@@ -19,6 +20,7 @@ class Unit(Character):
         self.speed_boost: bool = False
         self.alpha: int = 255
         self.sprite: pygame.Surface = sprite
+        self.conversations: list[Conversation] = []
     
     def move(self) -> bool:
         """If the player has initiated movement, keep moving one step.
@@ -116,3 +118,7 @@ class Unit(Character):
     def get_alpha(self) -> int:
         """Returns the unit's alpha."""
         return self.alpha
+    
+    def add_conversation(self, conversation: Conversation) -> None:
+        """Adds a conversation to the unit."""
+        self.conversations.append(conversation)

@@ -7,7 +7,7 @@ class Item:
     CONSUMABLE = "Consumable"
     MISC = "Misc"
 
-    def __init__(self, name: str, description: str, amount: int, 
+    def __init__(self, name: str, description: str, amount: int = 1, 
                  type: str = MISC, action: Action = None,
                  strength: int = 0, intelligence: int = 0,
                  defense: int = 0, resistance: int = 0,

@@ -6,6 +6,8 @@ from unit import Unit
 from room import Room
 from combat_input import CombatInput
 from combat import Combat
+from conversation import Conversation
+from quest_log import QuestLog
 from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
 from mechanics.storage import Storage
@@ -30,6 +32,7 @@ class Game():
         self.current_room = None
         self.current_location = None
         self.player = None
+        self.quest_log = QuestLog()
         self.combat = None
         self.combat_input = None
         self.storage = Storage()
@@ -48,8 +51,7 @@ class Game():
             Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
             Location.FENCE: pygame.image.load("resources/obstacles/Fence.png"),
             Location.BRIDGE_H: None,
-            Location.BRIDGE_V: None,
-            Location.ROAD: None
+            Location.BRIDGE_V: None
         }
         self.load_images()
 
@@ -249,21 +251,32 @@ class Game():
         self.maze.construct_locations()
         print(self.maze.get_layout())
 
-        # self.current_room = self.maze.get_location(0, 0)
-        self.current_room = self.maze.get_random_location()
+        meadows = self.maze.areas[6]
+        rooms = meadows.get_rooms(shuffle=True)
+        
+        self.current_room = rooms[0]
         print(f"Current room: {(self.current_room.x, self.current_room.y)}")
         self.current_location = self.current_room.location
-        
-        halfpoint = (self.GRID_SIZE - 1) // 2
-        for coordinates in ((halfpoint, 0), (halfpoint, self.GRID_SIZE - 1), (0, halfpoint), (self.GRID_SIZE - 1, halfpoint)):
-            if self.current_location.get_terrain(coordinates[0], coordinates[1]) <= 0:
-                self.player = Unit("Hero", pygame.image.load("resources/people/player_small.png"),
-                                   team=1, grid_x=coordinates[0], grid_y=coordinates[1])
-                hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
-                              "Agility": 3, "Intelligence": 0, "Stamina": 0,
-                              "Rank": 4, "Constitution": 6}
-                self.player.set_stats(CharacterStats(hero_stats))
-                break
+        start_position = self.current_location.get_random_position()
+
+        self.player = Unit("Hero", pygame.image.load("resources/people/Player_small.png"),
+                           team=1, grid_x=start_position[0], grid_y=start_position[1])
+        hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
+                      "Agility": 3, "Intelligence": 0, "Stamina": 0,
+                      "Rank": 4, "Constitution": 6}
+        self.player.set_stats(CharacterStats(hero_stats))
+
+        # I'm just adding stuff I really need
+        # The player's going to die right away if he doesn't get a good nights rest at the inn
+        # I don't want to manually add all the characters here
+        innkeeper = Unit("Isabel", pygame.image.load("resources/people/Commoner_female.png"))
+        # Yeah, she's not making any money
+        # Then again, I haven't even created an actual inn
+        innkeeper_offer = Conversation(["Good evening, traveler. You look weary.", "You may rest here free of charge."])
+        innkeeper_offer.add_reward(heal=True, restore=True)
+        innkeeper.add_conversation(innkeeper_offer)
+        rooms[1].location.characters.append(innkeeper)
+        rooms[1].location.place_all_characters()
     
     def set_room(self, room: Room):
         self.current_room = room
@@ -299,6 +312,19 @@ class Game():
             speed_boost = keys[pygame.K_p]
             if speed_boost != self.player.speed_boost:
                 self.player.set_speed_boost(speed_boost)
+            
+            if keys[pygame.K_l]:
+                npc = self.current_location.get_nearby_character(self.player.grid_x, self.player.grid_y)
+                if npc:
+                    # TODO: Got to talk with that NPC
+                    # This doesn't look too good, I'll fix it soon
+                    print(f"Talking with {npc.name}")
+                    conversation = self.quest_log.get_conversation(npc.conversations)
+                    if conversation:
+                        for message in conversation.messages:
+                            print(message)
+                        if conversation.heal and conversation.restore:
+                            self.player.rest()
             
             # Handle movement keys
             if keys[pygame.K_w]:
@@ -597,21 +623,27 @@ class Game():
         if not self.current_location:
             return
         
-        # Draw each cell
+        base_tile = self.TERRAIN[self.current_location.base_tile]
+
         for y in range(self.GRID_SIZE):
             for x in range(self.GRID_SIZE):
-                terrain_type = self.current_location.terrain[y][x]
+                self.screen.blit(base_tile, (x * self.CELL_SIZE, y * self.CELL_SIZE))
+        
+        for y in range(self.GRID_SIZE):
+            for x in range(self.GRID_SIZE):
+                terrain = self.current_location.terrain[y][x]
                 
-                pixel_x = x * self.CELL_SIZE
-                pixel_y = y * self.CELL_SIZE
-                self.screen.blit(self.TERRAIN[Location.GRASS], (pixel_x, pixel_y))
-                image = self.TERRAIN[terrain_type]
-
-                if image:
-                    self.screen.blit(self.TERRAIN[terrain_type], (pixel_x, pixel_y))
-
-        if self.player:
-            self.screen.blit(self.player.sprite, self.player.get_position())
+                if terrain == Location.SPRITE_STATION:
+                    unit = self.current_location.get_character_at(x, y)
+                    self.screen.blit(unit.sprite, unit.get_position())
+                elif terrain != self.current_location.base_tile:
+                    # I need to add passable terrain first, not here
+                    # Otherwise I get a "dig-into-the-ground"-bug
+                    self.screen.blit(self.TERRAIN[terrain], (x * self.CELL_SIZE, y * self.CELL_SIZE))
+            
+            if self.player and self.player.grid_y == y:
+                self.screen.blit(self.player.sprite, self.player.get_position())
+                self.player.sprite.set_alpha(self.player.get_alpha())
         
         self.draw_ui()
 

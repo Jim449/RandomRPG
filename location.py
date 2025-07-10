@@ -1,6 +1,7 @@
 import random
 from collections import deque
 from pool import Pool
+from unit import Unit
 
 class Location():
     """Describes a location in the maze.
@@ -10,19 +11,22 @@ class Location():
     SOUTH = 2
     WEST = 3
     # Expansion types
-    EXPAND_POOL = 0
-    EXPAND_LINE = 1
-    EXPAND_BRIDGE = 2
-    SINGLE_TILE = 3
-    REGULAR_PASSABLE = 4
+    EXPAND_POOL = 0 # Must belong to a 2x2 area of similar terrain.
+    EXPAND_LINE = 1 # Expands in a line.
+    EXPAND_BRIDGE = 2 # Various rules apply.
+    SINGLE_TILE = 3 # Single tile obstacle.
+    REGULAR_PASSABLE = 4 # Passable terrain.
+    IMPORTANT_PASSABLE = 5 # Passable terrain that cannot be modified.
+    IMPORTANT_BLOCKING = 6 # Blocking terrain that must be reachable.
     # Terrain types
     BRIDGE_H = -45
     BRIDGE_V = -30
     BRIDGE = -2
-    ROAD = -1
+    # ROAD = -1
     GRASS = 0
     FOREST = 1
     FENCE = 2
+    SPRITE_STATION = 3
     WATER = 15
     MOUNTAIN = 30
 
@@ -30,7 +34,8 @@ class Location():
                  base_tile: int = 0, base_inaccessible_tile: int = None,
                  pool_terrain_amount: tuple[int, int] = (-1, 2), pool_terrain_growth: tuple[int, int] = (0, 2),
                  line_terrain_amount: tuple[int, int] = (-1, 2), corner_terrain_growth: tuple[int, int] = (0, 1),
-                 obstacle_coverage: tuple[float, float] = (0.2, 0.4)):
+                 obstacle_coverage: tuple[float, float] = (0.2, 0.4),
+                 characters: list[Unit] = None):
         """Creates a new location.
         
         Args:
@@ -62,6 +67,11 @@ class Location():
         self.line_terrain_allowed = []
         self.single_tile_terrain_allowed = []
         self.corners = []
+
+        if characters:
+            self.characters = characters
+        else:
+            self.characters = []
 
         for terrain in allowed_obstacles:
             expansion_type = self.get_terrain_expansion_type(terrain)
@@ -126,8 +136,10 @@ class Location():
             return Location.EXPAND_BRIDGE
         elif terrain_type == Location.FENCE:
             return Location.EXPAND_LINE
-        elif terrain in (Location.ROAD, Location.GRASS):
+        elif terrain == Location.GRASS:
             return Location.REGULAR_PASSABLE
+        elif terrain == Location.SPRITE_STATION:
+            return Location.IMPORTANT_BLOCKING
         else:
             return Location.SINGLE_TILE
     
@@ -203,36 +215,38 @@ class Location():
 
         if self.room.paths[Location.NORTH] == 1:
             for x in range(self.room.get_entrance_start(Location.NORTH), self.room.get_entrance_end(Location.NORTH)):
-                self.terrain[0][x] = Location.ROAD
+                self.terrain[0][x] = Location.GRASS
         if self.room.paths[Location.SOUTH] == 1:
             for x in range(self.room.get_entrance_start(Location.SOUTH), self.room.get_entrance_end(Location.SOUTH)):
-                self.terrain[self.height - 1][x] = Location.ROAD
+                self.terrain[self.height - 1][x] = Location.GRASS
         if self.room.paths[Location.WEST] == 1:
             for y in range(self.room.get_entrance_start(Location.WEST), self.room.get_entrance_end(Location.WEST)):
-                self.terrain[y][0] = Location.ROAD
+                self.terrain[y][0] = Location.GRASS
         if self.room.paths[Location.EAST] == 1:
             for y in range(self.room.get_entrance_start(Location.EAST), self.room.get_entrance_end(Location.EAST)):
-                self.terrain[y][self.width - 1] = Location.ROAD
+                self.terrain[y][self.width - 1] = Location.GRASS
 
     @staticmethod
     def is_passable(type: int) -> bool:
         return type <= 0
     
     def is_terrain_connected(self) -> bool:
-        """Validates that all passable terrain (0) is reachable using flood fill"""
-        # Find all passable cells
+        """Validates that all passable terrain (0) is reachable using flood fill.
+        Also checks that all important blocking terrain is reachable."""
         passable_cells = []
+        important_cells = []
+
         for y in range(self.height):
             for x in range(self.width):
                 if self.is_passable(self.terrain[y][x]):
                     passable_cells.append((x, y))
-        
-        if not passable_cells:
-            return True  # No passable cells, trivially connected
+                elif self.get_terrain_expansion_type(self.terrain[y][x]) == Location.IMPORTANT_BLOCKING:
+                    important_cells.append((x, y))
         
         # Start flood fill from the first passable cell
         start_x, start_y = passable_cells[0]
         visited = set()
+        important_visited = set()
         queue = deque([(start_x, start_y)])
         visited.add((start_x, start_y))
         
@@ -246,23 +260,29 @@ class Location():
                 nx, ny = x + dx, y + dy
                 
                 # Check bounds and if cell is passable and not visited
-                if (0 <= nx < self.width and 0 <= ny < self.height and 
-                    self.is_passable(self.terrain[ny][nx]) and (nx, ny) not in visited):
-                    visited.add((nx, ny))
-                    queue.append((nx, ny))
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if self.is_passable(self.terrain[ny][nx]) and (nx, ny) not in visited:
+                        visited.add((nx, ny))
+                        queue.append((nx, ny))
+                    elif self.get_terrain_expansion_type(self.terrain[ny][nx]) == Location.IMPORTANT_BLOCKING and (nx, ny) not in important_visited:
+                        important_visited.add((nx, ny))
         
         # Check if all passable cells were reached
-        return len(visited) == len(passable_cells)
+        return len(visited) == len(passable_cells) and len(important_visited) == len(important_cells)
 
-    def create_obstacles(self, obstacle_percentage: float = 0.3) -> None:
-        """Creates random obstacles while ensuring all passable terrain remains reachable"""
-        
+    def _get_interior_cells(self) -> list[tuple[int, int]]:
+        """Returns a list of all interior cells"""
         interior_cells = []
         for y in range(1, self.height - 1):
             for x in range(1, self.width - 1):
-                # Checks for passable terrain that is not a bridge
                 if self.get_terrain_expansion_type(self.terrain[y][x]) == Location.REGULAR_PASSABLE:
                     interior_cells.append((x, y))
+        return interior_cells
+    
+    def create_obstacles(self, obstacle_percentage: float = 0.3) -> None:
+        """Creates random obstacles while ensuring all passable terrain remains reachable"""
+        
+        interior_cells = self._get_interior_cells()
         
         if not interior_cells:
             return
@@ -275,13 +295,59 @@ class Location():
             if obstacles_placed >= max_obstacles:
                 break
             
-            terrain_type = self.get_obstacle(self.single_tile_terrain_allowed, None)
+            terrain_type = random.choice(self.single_tile_terrain_allowed)
             self.terrain[y][x] = terrain_type
             
             if self.is_terrain_connected():
                 obstacles_placed += 1
             else:
                 self.terrain[y][x] = Location.GRASS
+    
+    def place_character(self, character: Unit, interior_cells: list[tuple[int, int]]) -> None:
+        """Places a character at a random interior cell"""
+        while True:
+            i = random.randrange(len(interior_cells))
+            x, y = interior_cells[i]
+            self.terrain[y][x] = Location.SPRITE_STATION
+            character.set_grid_position(x, y)
+            interior_cells.pop(i)
+            
+            if self.is_terrain_connected():
+                return
+            else:
+                self.terrain[y][x] = Location.GRASS
+
+    def place_all_characters(self) -> None:
+        """Places characters at random."""
+        interior_cells = self._get_interior_cells()
+
+        for character in self.characters:
+            self.place_character(character, interior_cells)
+    
+    def get_character_at(self, x: int, y: int) -> Unit:
+        """Returns the character at the given coordinates, or None if there is none."""
+        for character in self.characters:
+            if character.get_grid_position() == (x, y):
+                return character
+        return None
+    
+    def get_random_position(self) -> tuple[int, int]:
+        """Returns a random passable position in the location."""
+        while True:
+            x = random.randrange(1, self.width - 1)
+            y = random.randrange(1, self.height - 1)
+            if self.is_passable(self.terrain[y][x]):
+                return (x, y)
+
+    def get_nearby_character(self, x: int, y: int) -> Unit:
+        """Returns a character within conversation range of the given coordinates,
+        or None if there is none."""
+        directions = ((0, -1), (1, 0), (0, 1), (-1, 0))
+        for dx, dy in directions:
+            character = self.get_character_at(x + dx, y + dy)
+            if character is not None:
+                return character
+        return None
 
     def expand_pool(self, pool: Pool,
                     check_passability: bool = False,
@@ -440,8 +506,6 @@ class Location():
             for x in range(self.width):
                 if self.terrain[y][x] == Location.FOREST:
                     layout += "$ "
-                elif self.terrain[y][x] == Location.ROAD:
-                    layout += "  "
                 elif self.terrain[y][x] == Location.GRASS:
                     layout += ", "
                 elif self.get_terrain_type_at(x, y) == Location.MOUNTAIN:
@@ -803,7 +867,7 @@ class Location():
         Returns True if at least one bridge was created.
         """
         success = False
-        if self.place_pool(box, Location.ROAD,
+        if self.place_pool(box, Location.GRASS,
                            allow_addition=True, allow_extension=True,
                            erased_terrain=Location.WATER,
                            check_only=True,
@@ -817,7 +881,7 @@ class Location():
                                        min_length=bridge_viability[1], max_length=bridge_viability[1])
         if success:
             for x, y in box:
-                self.terrain[y][x] = Location.ROAD
+                self.terrain[y][x] = Location.GRASS
         return success
 
     def connect_passable_terrain(self, attempts: int = 300) -> bool:
@@ -835,7 +899,7 @@ class Location():
                         # print(self.get_layout())                        
                         # input()
             else: # self.get_terrain(x, y) == Location.ROAD:
-                if self.place_pool(self.get_coordinates_box(x, y), Location.ROAD,
+                if self.place_pool(self.get_coordinates_box(x, y), Location.GRASS,
                                 allow_addition=False, allow_extension=True,
                                 erased_terrain=self.base_inaccessible_tile,
                                 check_passability=False, avoid_bridges=True)[0]:
@@ -887,7 +951,7 @@ class Location():
         while True:
             x = random.randrange(1, self.width - 2)
             y = random.randrange(1, self.height - 2)
-            if self.place_pool(self.get_coordinates_box(x, y), Location.ROAD,
+            if self.place_pool(self.get_coordinates_box(x, y), Location.GRASS,
                                 allow_addition=True,
                                 allow_extension=False,
                                 erased_terrain=Location.WATER,

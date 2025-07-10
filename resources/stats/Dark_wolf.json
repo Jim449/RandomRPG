@@ -1,14 +1,14 @@
 {
-    "name": "Wolf",
+    "name": "Dark wolf",
     "moveset": ["Attack"],
     "stats": {
-        "Strength": 5,
+        "Strength": 6,
         "Defense": 0,
         "Intelligence": 0,
         "Resistance": 0,
-        "Agility": 4,
+        "Agility": 5,
         "Stamina": 0,
-        "Rank": 6,
+        "Rank": 8,
         "Constitution": 1
     }
 }
