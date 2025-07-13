@@ -18,6 +18,7 @@ class Location():
     REGULAR_PASSABLE = 4 # Passable terrain.
     IMPORTANT_PASSABLE = 5 # Passable terrain that cannot be modified.
     IMPORTANT_BLOCKING = 6 # Blocking terrain that must be reachable.
+    OBJECT = 7 # Object terrain.
     # Terrain types
     BRIDGE_H = -45
     BRIDGE_V = -30
@@ -26,7 +27,13 @@ class Location():
     GRASS = 0
     FOREST = 1
     FENCE = 2
-    SPRITE_STATION = 3
+    FENCE_H = 3
+    FENCE_V = 4
+    SPRITE_STATION = 5
+    HOUSE_3x2 = 6
+    ANONYMOUS_BLOCKING = 7
+    ANONYMOUS_ENTRANCE = 8
+    OAK = 9
     WATER = 15
     MOUNTAIN = 30
 
@@ -34,8 +41,10 @@ class Location():
                  base_tile: int = 0, base_inaccessible_tile: int = None,
                  pool_terrain_amount: tuple[int, int] = (-1, 2), pool_terrain_growth: tuple[int, int] = (0, 2),
                  line_terrain_amount: tuple[int, int] = (-1, 2), corner_terrain_growth: tuple[int, int] = (0, 1),
+                 object_terrain_amount: tuple[int, int] = (0, 0),
                  obstacle_coverage: tuple[float, float] = (0.2, 0.4),
-                 characters: list[Unit] = None):
+                 characters: list[Unit] = None,
+                 safe_zone: bool = False):
         """Creates a new location.
         
         Args:
@@ -49,6 +58,7 @@ class Location():
             pool_terrain_amount: The minimum and maximum amount of pool terrains being placed. Amount is chosen uniformly. Negative values translate to 0.
             pool_terrain_growth: The minimum and maximum number of expansions for a pool terrain. Applies to both large corner terrain and interior terrain.
             line_terrain_amount: The minimum and maximum number of line terrain being placed. Amount is chosen uniformly. Negative values translate to 0.
+            object_terrain_amount: The minimum and maximum number of object terrains being placed. Amount is chosen uniformly. Negative values translate to 0.
             obstacle_coverage: The minimum and maximum percentage of the location that can be occupied by single tile obstacles.
         """
         self.width = width
@@ -63,17 +73,23 @@ class Location():
         self.pool_terrain_growth = pool_terrain_growth
         self.line_terrain_amount = line_terrain_amount
         self.corner_terrain_growth = corner_terrain_growth
+        self.object_terrain_amount = object_terrain_amount
+        self.allowed_obstacles = list(allowed_obstacles)
         self.pool_terrain_allowed = []
         self.line_terrain_allowed = []
         self.single_tile_terrain_allowed = []
+        self.object_terrain_allowed = []
         self.corners = []
+        self.safe_zone = safe_zone
 
         if characters:
             self.characters = characters
         else:
             self.characters = []
-
-        for terrain in allowed_obstacles:
+    
+    def build_location(self) -> None:
+        """Builds the location for the room"""
+        for terrain in self.allowed_obstacles:
             expansion_type = self.get_terrain_expansion_type(terrain)
             if expansion_type == Location.EXPAND_POOL:
                 self.pool_terrain_allowed.append(terrain)
@@ -81,8 +97,10 @@ class Location():
                 self.line_terrain_allowed.append(terrain)
             elif expansion_type == Location.SINGLE_TILE:
                 self.single_tile_terrain_allowed.append(terrain)
+            elif expansion_type == Location.OBJECT:
+                self.object_terrain_allowed.append(terrain)
 
-        if base_inaccessible_tile:
+        if self.base_inaccessible_tile:
             self.inaccessible_terrain = True
             self.create_lake_location()
         else:
@@ -134,12 +152,14 @@ class Location():
             return Location.EXPAND_BRIDGE
         elif terrain_type == Location.BRIDGE_V:
             return Location.EXPAND_BRIDGE
-        elif terrain_type == Location.FENCE:
+        elif terrain_type in (Location.FENCE_H, Location.FENCE_V, Location.FENCE):
             return Location.EXPAND_LINE
         elif terrain == Location.GRASS:
             return Location.REGULAR_PASSABLE
-        elif terrain == Location.SPRITE_STATION:
+        elif terrain in (Location.SPRITE_STATION, Location.ANONYMOUS_ENTRANCE):
             return Location.IMPORTANT_BLOCKING
+        elif terrain in (Location.HOUSE_3x2, Location.OAK, Location.ANONYMOUS_BLOCKING):
+            return Location.OBJECT
         else:
             return Location.SINGLE_TILE
     
@@ -302,6 +322,74 @@ class Location():
                 obstacles_placed += 1
             else:
                 self.terrain[y][x] = Location.GRASS
+    
+    def _place_terrain_in_box(self, x: int, y: int, length: int, height: int, terrain_type: int) -> bool:
+        """Places a fixed-size terrain in a box"""
+        if x + length >= self.width - 1 or y + height >= self.height - 1:
+            return False
+        
+        # Check if the box is entirely grass
+        for col in range(x, x + length):
+            for row in range(y, y + height):
+                if self.terrain[row][col] != Location.GRASS:
+                    return False
+        
+        for col in range(x, x + length):
+            for row in range(y, y + height):
+                self.terrain[row][col] = terrain_type
+
+        return True
+
+    def place_object(self, x: int, y: int, terrain_type: int) -> bool:
+        """Places a fixed-size object at the given coordinates"""
+        length = 0
+        height = 0
+        entrance_x = None
+        entrance_y = None
+        
+        if terrain_type == Location.HOUSE_3x2:
+            length = 3
+            height = 2
+            entrance_x = x + 1
+            entrance_y = y + 1
+        elif terrain_type == Location.OAK:
+            length = 2
+            height = 2
+
+        if not self._place_terrain_in_box(x, y, length, height, Location.ANONYMOUS_BLOCKING):
+            return False
+        
+        self.terrain[y][x] = terrain_type
+        
+        # Ensures the entrance is reachable
+        if entrance_y is not None:
+            self.terrain[entrance_y][entrance_x] = Location.ANONYMOUS_ENTRANCE
+
+        if self.is_terrain_connected():
+            return True
+        else:
+            self._place_terrain_in_box(x, y, length, height, Location.GRASS)
+            return False
+    
+    def create_objects(self) -> None:
+        """Creates random objects while ensuring all passable terrain remains reachable"""
+        interior_cells = self._get_interior_cells()
+        
+        if not interior_cells:
+            return
+        
+        random.shuffle(interior_cells)
+        max_objects = random.randint(self.object_terrain_amount[0], self.object_terrain_amount[1])
+
+        objects_placed = 0
+        for x, y in interior_cells:
+            if objects_placed >= max_objects:
+                break
+
+            terrain_type = random.choice(self.object_terrain_allowed)
+
+            if self.place_object(x, y, terrain_type):
+                objects_placed += 1
     
     def place_character(self, character: Unit, interior_cells: list[tuple[int, int]]) -> None:
         """Places a character at a random interior cell"""
@@ -512,8 +600,10 @@ class Location():
                     layout += "# "
                 elif self.get_terrain_type_at(x, y) == Location.WATER:
                     layout += "~ "
-                elif self.terrain[y][x] == Location.FENCE:
+                elif self.terrain[y][x] == Location.FENCE_H:
                     layout += "= "
+                elif self.terrain[y][x] == Location.FENCE_V:
+                    layout += "| "
                 elif self.get_terrain_type_at(x, y) == Location.BRIDGE_H:
                     layout += "= "
                 elif self.get_terrain_type_at(x, y) == Location.BRIDGE_V:
@@ -550,7 +640,7 @@ class Location():
             
             # Check if terrain breaks connectivity
             if not self.is_terrain_connected():
-                self.punch_terrain_hole(terrain_type, terrain_cells)
+                self.punch_terrain_hole(terrain_type + direction + 1, terrain_cells)
     
     def extend_line_terrain(self, terrain_type: int, start_x: int, start_y: int, direction: int) -> list[tuple[int, int]]:
         """Extends a terrain from starting position until obstacles are reached"""
@@ -561,14 +651,14 @@ class Location():
             x = start_x
             while x >= 1 and self.is_passable(self.terrain[start_y][x]):
                 terrain_cells.append((x, start_y))
-                self.terrain[start_y][x] = terrain_type
+                self.terrain[start_y][x] = terrain_type + 1
                 x -= 1
             
             # Extend right
             x = start_x + 1
             while x < self.width - 1 and self.is_passable(self.terrain[start_y][x]):
                 terrain_cells.append((x, start_y))
-                self.terrain[start_y][x] = terrain_type
+                self.terrain[start_y][x] = terrain_type + 1
                 x += 1
                 
         else:  # Vertical fence
@@ -576,14 +666,14 @@ class Location():
             y = start_y
             while y >= 1 and self.is_passable(self.terrain[y][start_x]):
                 terrain_cells.append((start_x, y))
-                self.terrain[y][start_x] = terrain_type
+                self.terrain[y][start_x] = terrain_type + 2
                 y -= 1
             
             # Extend down
             y = start_y + 1
             while y < self.height - 1 and self.is_passable(self.terrain[y][start_x]):
                 terrain_cells.append((start_x, y))
-                self.terrain[y][start_x] = terrain_type
+                self.terrain[y][start_x] = terrain_type + 2
                 y += 1
         
         return terrain_cells
@@ -962,34 +1052,42 @@ class Location():
     def create_regular_location(self) -> None:
         """Modifies the location, using passable terrain as a base.
         Places obstacles of different types."""
-        self.terrain = [[self.base_tile for x in range(self.width)] for y in range(self.height)]
-        # Create and expand corner obstacles
-        self.create_edges()
-        
-        for i in range(4):
-            self.expand_pool(self.corners[i], check_passability=True, avoid_bridges=False)
-        
-        obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
-        pool_amount = random.randint(self.pool_terrain_amount[0], self.pool_terrain_amount[1])
-        line_amount = random.randint(self.line_terrain_amount[0], self.line_terrain_amount[1])
+        while True:
+            self.terrain = [[self.base_tile for x in range(self.width)] for y in range(self.height)]
+            # Create and expand corner obstacles
+            self.create_edges()
+            self.create_objects()
+            try:
+                self.place_all_characters()
+            except ValueError as e:
+                continue
 
-        # Create large internal obstacles
-        self.build_pools(pool_amount, self.pool_terrain_allowed,
-                         erased_terrain=None,
-                         check_passability=True,
-                         avoid_bridges=False)
-        
-        if line_amount > 0:
-            # If there are fences,
-            # I create some small obstacles for them to collide with
-            # That should make them shorter
-            self.create_obstacles(obstacle_coverage / 2)
-            self.create_line_terrain(self.get_obstacle(self.line_terrain_allowed, None), line_amount)
-            self.create_obstacles(obstacle_coverage / 2)
-        else:
-            self.create_obstacles(obstacle_coverage)
-        
-        self.rotate_all_obstacles()
+            for i in range(4):
+                self.expand_pool(self.corners[i], check_passability=True, avoid_bridges=False)
+            
+            obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
+            pool_amount = random.randint(self.pool_terrain_amount[0], self.pool_terrain_amount[1])
+            line_amount = random.randint(self.line_terrain_amount[0], self.line_terrain_amount[1])
+
+            # Create large internal obstacles
+            self.build_pools(pool_amount, self.pool_terrain_allowed,
+                            erased_terrain=None,
+                            check_passability=True,
+                            avoid_bridges=False)
+            
+            if line_amount > 0:
+                # If there are fences,
+                # I create some small obstacles for them to collide with
+                # That should make them shorter
+                self.create_obstacles(obstacle_coverage / 2)
+                self.create_line_terrain(self.get_obstacle(self.line_terrain_allowed, None), line_amount)
+                self.create_obstacles(obstacle_coverage / 2)
+            else:
+                self.create_obstacles(obstacle_coverage)
+            
+            self.rotate_all_obstacles()
+            return
+            
 
 
     def create_lake_location(self) -> None:
@@ -998,6 +1096,10 @@ class Location():
         while True:
             self.terrain = [[self.base_inaccessible_tile for x in range(self.width)] for y in range(self.height)]
             self.create_edges()
+            try:
+                self.place_all_characters()
+            except ValueError as e:
+                continue
 
             # Create land until all entrances are connected
             # If there's only one entrance, create some more land

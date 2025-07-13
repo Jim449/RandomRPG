@@ -434,10 +434,15 @@ class Maze(Blueprint):
                                                 area.large_obstacle_growth)
                     placed += 1
     
-    def construct_locations(self) -> None:
+    def setup_locations(self) -> None:
         """Constructs the locations of the maze"""
         for area in self.areas:
-            area.construct_locations()
+            area.setup_locations()
+    
+    def build_locations(self) -> None:
+        """Builds the locations of the maze"""
+        for area in self.areas:
+            area.build_locations()
 
     def copy(self) -> Self:
         """Returns a copy of the maze"""

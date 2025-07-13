@@ -2,7 +2,7 @@ from conversation import Conversation
 
 
 class Quest():
-    def __init__(self, name: str, step: int = 0):
+    def __init__(self, name: str, step: int = 1):
         """Initializes a quest."""
         self.name = name
         self.step = step
@@ -24,7 +24,8 @@ class QuestLog():
     def get_quest(self, name: str, step: int = None) -> Quest:
         """Returns a quest from the quest log.
         If step is provided, the quest must be at that step to be returned.
-        Return None if no valid quest was found."""
+        Returns None if no valid quest was found.
+        If step is 0, the quest is created if it doesn't exist."""
         try:
             quest = self.quests[name]
             if step is None or quest.step == step:
@@ -32,7 +33,20 @@ class QuestLog():
             else:
                 return None
         except KeyError:
-            return None
+            if step == 0:
+                quest = Quest(name)
+                self.add_quest(quest)
+                return quest
+            else:
+                return None
+
+    def check_conversation(self, conversation: Conversation) -> bool:
+        """Checks if the conversation can be triggered."""
+        if conversation.quest_name is None:
+            return True
+        else:
+            quest = self.get_quest(conversation.quest_name, conversation.quest_step)
+            return quest is not None
     
     def get_conversation(self, conversations: list[Conversation]) -> Conversation:
         """Returns a conversation from a list.
@@ -66,7 +80,7 @@ class QuestLog():
 
     def finish_conversation(self, conversation: Conversation) -> None:
         """Finishes a conversation and updates the quest log accordingly."""
-        if conversation.quest_name is not None:
+        if conversation.progress_quest:
             quest = self.get_quest(conversation.quest_name, conversation.quest_step)
             if quest:
                 quest.progress()

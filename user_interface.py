@@ -3,10 +3,10 @@ import pygame
 class UserInterface():
     def __init__(self, screen):
         self.screen = screen
-        self.background_color = (34, 34, 34)
+        self.background_color = (24, 32, 24)
         self.health_color = (0, 0, 0)
         self.menu_color = (238, 238, 238)
-        self.border_color = (68, 68, 68)
+        self.border_color = (48, 64, 48)
         self.messages = []
         self.panel_width = 480
         self.panel_height = 128
@@ -17,18 +17,19 @@ class UserInterface():
         self.panel_y = 480 - 128
         self.border_width = 2
         self.option_width = 112
-        self.option_height = 32
+        self.option_height = 26
         self.option_left_margin = 16
-        self.option_top_margin = 0
+        self.option_top_margin = 16
         self.health_x = 20
         self.magic_x = 400
         self.health_y = self.panel_y - 20
         self.menu_font = pygame.font.Font(None, 16)
         self.health_font = pygame.font.Font(None, 24)
-        self.message_font = pygame.font.Font(None, 16)
+        self.message_font = pygame.font.Font(None, 22)
+        self.pointer = pygame.image.load("resources/other/Option_pointer.png")
 
         self.main_panel = pygame.Surface((self.panel_width, self.panel_height))
-        self.main_panel.fill(self.background_color)
+        self.main_panel.fill(self.border_color)
         pygame.draw.rect(self.main_panel, self.border_color, (0, 0, self.panel_width, self.panel_height), self.border_width)
 
         self.menu_panel = pygame.Surface((self.menu_width, self.panel_height))
@@ -55,9 +56,7 @@ class UserInterface():
         
         for i, option in enumerate(combat_input.menu_options):
             if i == combat_input.menu_y:
-                # Need to draw something to indicate the option is selected
-                # Use a triangle. I need to create some graphics first...
-                pass
+                self.screen.blit(self.pointer, (0, self.panel_y + self.option_top_margin + (i * self.option_height)))
             text_surface = self.menu_font.render(option, True, self.menu_color)
             text_y = self.panel_y + self.option_top_margin + (i * self.option_height)
             self.screen.blit(text_surface, (self.option_left_margin, text_y))
@@ -68,13 +67,11 @@ class UserInterface():
         for row in range(4):
             for col in range(4):
                 spell_name = combat_input.spell_options[row][col]
-                if (col == combat_input.spell_x and row == combat_input.spell_y):
-                    # Need to draw something to indicate the spell is selected
-                    # Use a triangle. I need to create some graphics first...
-                    pass
-                text_surface = self.menu_font.render(spell_name, True, self.menu_color)
                 text_x = self.menu_width + self.option_left_margin + (col * self.option_width)
                 text_y = self.panel_y + self.option_top_margin + (row * self.option_height)
+                if (col == combat_input.spell_x and row == combat_input.spell_y):
+                    self.screen.blit(self.pointer, (text_x - self.option_left_margin, text_y))
+                text_surface = self.menu_font.render(spell_name, True, self.menu_color)
                 self.screen.blit(text_surface, (text_x, text_y))
 
     def draw_confirmation_panel(self, combat_input):
@@ -89,11 +86,9 @@ class UserInterface():
         self.screen.blit(no_text, (prompt_x, prompt_y + self.option_height * 2))
 
         if combat_input.confirmation_y == 0:
-            # Draw a triangle to indicate the yes option is selected
-            pass
+            self.screen.blit(self.pointer, (prompt_x - self.option_left_margin, prompt_y + self.option_height))
         else:
-            # Draw a triangle to indicate the no option is selected
-            pass
+            self.screen.blit(self.pointer, (prompt_x - self.option_left_margin, prompt_y + self.option_height * 2))
 
     def draw_health(self, player):
         health_text = self.health_font.render(
@@ -118,3 +113,6 @@ class UserInterface():
             text_surface = self.message_font.render(message, True, self.menu_color)
             text_y = self.panel_y + self.option_top_margin + (row * self.option_height)
             self.screen.blit(text_surface, (self.option_left_margin, text_y))
+
+    def set_message(self, message):
+        self.messages = message.split("\n")

@@ -1,14 +1,14 @@
 {
-    "name": "Orc",
+    "name": "Centipede",
     "moveset": ["Attack"],
     "stats": {
-        "Strength": 6,
-        "Defense": 1,
+        "Strength": 5,
+        "Defense": 3,
         "Intelligence": 0,
         "Resistance": 0,
-        "Agility": 3,
+        "Agility": 5,
         "Stamina": 0,
-        "Rank": 7,
+        "Rank": 8,
         "Constitution": 1
     }
 }

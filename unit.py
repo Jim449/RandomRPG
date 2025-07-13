@@ -4,8 +4,9 @@ from conversation import Conversation
 
 class Unit(Character):
     def __init__(self, name: str, sprite: pygame.Surface, 
-                 team: int = 1, grid_x: int = 0, grid_y: int = 0):
-        super().__init__(name=name, team=team)
+                 team: int = 1, grid_x: int = 0, grid_y: int = 0,
+                 level: int = 1):
+        super().__init__(name=name, team=team, level=level)
         self.grid_x: int = grid_x
         self.grid_y: int = grid_y
         self.x: int = grid_x * 32

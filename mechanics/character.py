@@ -80,6 +80,10 @@ class Character:
         value = self.get_final_stat(self.STRENGTH)
         if self.weapon:
             value += self.weapon.strength
+        if self.armor:
+            value += self.armor.strength
+        if self.accessory:
+            value += self.accessory.strength
         value -= opponent.get_defense()
         bonus = 1 + self.level * self.LEVEL_BONUS
         value *= bonus
@@ -87,19 +91,24 @@ class Character:
             
     def get_defense(self) -> int:
         """Calculates the defense value."""
+        value = self.get_final_stat(self.DEFENSE)
+        if self.weapon:
+            value += self.weapon.defense
         if self.armor:
-            return self.get_final_stat(self.DEFENSE) + self.armor.defense
-        return self.get_final_stat(self.DEFENSE)
+            value += self.armor.defense
+        if self.accessory:
+            value += self.accessory.defense
+        return value
     
     def get_magic_attack(self, opponent: Self, power: int = 0) -> float:
         """Calculates the magic attack value."""
         value = self.get_final_stat(self.INTELLIGENCE)
         if self.weapon:
-            value += self.weapon.magic
+            value += self.weapon.intelligence
         if self.armor:
-            value += self.armor.magic
+            value += self.armor.intelligence
         if self.accessory:
-            value += self.accessory.magic
+            value += self.accessory.intelligence
         value -= opponent.get_resistance()
         bonus = 1 + self.level * self.LEVEL_BONUS
         value *= bonus
@@ -107,9 +116,25 @@ class Character:
 
     def get_resistance(self) -> int:
         """Calculate the resistance value."""
+        value = self.get_final_stat(self.RESISTANCE)
+        if self.weapon:
+            value += self.weapon.resistance
         if self.armor:
-            return self.get_final_stat(self.RESISTANCE) + self.armor.resistance
-        return self.get_final_stat(self.RESISTANCE)
+            value += self.armor.resistance
+        if self.accessory:
+            value += self.accessory.resistance
+        return value
+    
+    def get_agility(self) -> int:
+        """Calculate the agility value."""
+        value = self.get_final_stat(self.AGILITY)
+        if self.weapon:
+            value += self.weapon.agility
+        if self.armor:
+            value += self.armor.agility
+        if self.accessory:
+            value += self.accessory.agility
+        return value
     
     def calculate_health(self) -> None:
         """Sets the full health value."""
@@ -127,7 +152,18 @@ class Character:
         self.base_stats = stats
         self.calculate_health()
         self.calculate_magic()
-        self.rest()
+        self.full_heal()
+        self.full_restore()
+
+    def get_experience(self) -> int:
+        """Returns the experience reward for defeating the character."""
+        return int((self.get_base_stat(self.RANK)**2
+                    * self.get_base_stat(self.CONSTITUTION)
+                    * (1 + self.level * self.LEVEL_BONUS)) / 4)
+    
+    def set_actions(self, actions: List[Action]) -> None:
+        """Sets the character's actions."""
+        self.moveset = actions
     
     def get_all_final_stats(self) -> dict:
         """Get all final stats as a dictionary."""
@@ -343,20 +379,23 @@ class Character:
         """Heal the character."""
         self.health_change = self.base_stats.restore_stat(self.HP, self.MAX_HP, amount)
     
+    def full_heal(self) -> None:
+        """Fully heals the character."""
+        self.base_stats.restore_stat(self.MAX_HP, self.FULL_HP, 1000)
+        self.heal(1000)
+    
     def restore(self, amount: int) -> None:
         """Restores magical energy."""
         self.base_stats.restore_stat(self.MP, self.MAX_MP, amount)
     
-    def rest(self) -> None:
-        """Fully restores health and magical energy."""
-        self.base_stats.restore_stat(self.MAX_HP, self.FULL_HP, 1000)
+    def full_restore(self) -> None:
+        """Fully restores magical energy."""
         self.base_stats.restore_stat(self.MAX_MP, self.FULL_MP, 1000)
-        self.heal(1000)
         self.restore(1000)
     
     def calculate_speed(self) -> None:
         """Calculate the speed of the character."""
-        self.combat_speed = self.get_final_stat(self.AGILITY) + self.level * self.LEVEL_BONUS + random()
+        self.combat_speed = self.get_agility() + self.level * self.LEVEL_BONUS + random()
 
     def gain_experience(self, amount: int) -> bool:
         """Gain experience.

@@ -23,8 +23,8 @@ class CombatInput:
 
     def __init__(self, hero: Unit, enemies: list[Unit]):
         self.hero = hero
-        self.enemies = enemies
-        self.units = [hero] + enemies
+        self.enemies = enemies.copy()
+        self.units = [hero] + self.enemies
         self.mode_stack = []
         self.mode = self.PREPARATION
         self.enemy_grid = [[None, None, None], [None, None], [None]]
@@ -146,14 +146,14 @@ class CombatInput:
     def get_target_pointer(self) -> tuple[int, int]:
         """Returns the target pointer."""
         position = self.get_enemy().get_position()
-        return (position[0] + 20, position[1] - 32)
+        return (position[0] + 22, position[1] - 32)
     
     def get_mass_pointers(self) -> list[tuple[int, int]]:
         """Returns targeting pointers for all enemies."""
         pointers = []
         for enemy in self.enemies:
             position = enemy.get_position()
-            pointers.append((position[0] + 20, position[1] - 32))
+            pointers.append((position[0] + 22, position[1] - 32))
         return pointers
     
     def cycle_menu(self, direction: int) -> None:

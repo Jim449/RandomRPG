@@ -39,12 +39,15 @@ class Room():
                 result = "0" + result
         return result
 
-    def create_location(self, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
+    def setup_location(self, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
                         pool_terrain_amount: tuple[int, int] = (0, 0), pool_terrain_growth: tuple[int, int] = (0, 2),
-                        line_terrain_amount: tuple[int, int] = (1, 3), corner_terrain_growth: tuple[int, int] = (0, 1),
+                        line_terrain_amount: tuple[int, int] = (1, 3), object_terrain_amount: tuple[int, int] = (0, 0),
+                        corner_terrain_growth: tuple[int, int] = (0, 1),
                         base_tile: int = 0,
                         obstacle_coverage: tuple[float, float] = (0.2, 0.4)) -> None:
-        """Creates a location for the room"""
+        """Sets up a location for the room.
+        The location can be built using build_location().
+        Until then, any location details can be changed."""
         self.location = Location(self,
                                  allowed_obstacles=allowed_obstacles,
                                  width=width,
@@ -53,10 +56,15 @@ class Room():
                                  pool_terrain_amount=pool_terrain_amount,
                                  pool_terrain_growth=pool_terrain_growth,
                                  line_terrain_amount=line_terrain_amount,
+                                 object_terrain_amount=object_terrain_amount,
                                  corner_terrain_growth=corner_terrain_growth,
                                  obstacle_coverage=obstacle_coverage,
                                  base_tile=base_tile,
                                  base_inaccessible_tile=self.inaccessible_tile)
+    
+    def build_location(self) -> None:
+        """Builds the location for the room"""
+        self.location.build_location()
 
     def set_path(self, dir: int, value: int, linked_room: int) -> None:
         """Sets a path towards a direction to OPEN or CLOSED"""

@@ -39,7 +39,7 @@ class Conversation():
         """Links the conversation to a quest.
         The conversation is only triggered if the player is at the given quest step.
         If progress_quest is True, the quest step will be incremented.
-        If there is a quest_initiation, a new quest is started at step 0.
+        If there is a quest_initiation, a new quest is started at step 1.
         """
         self.quest_name = quest_name
         self.quest_step = quest_step
@@ -64,3 +64,6 @@ class Conversation():
         else:
             return None
     
+    def reset(self) -> None:
+        """Resets the conversation to the first message."""
+        self.current_message = 0

@@ -2,11 +2,13 @@ from room import Room
 from location import Location
 from typing import Self, Iterator
 import random
+from encounter import Encounter
+from quest_log import QuestLog
 
 class Area():
     def __init__(self, id: int, name: str, base_tile: int = Location.GRASS, allowed_obstacles: tuple[int] = (Location.FOREST, Location.FENCE),
                  pool_terrain_amount: tuple[int, int] = (0, 0), pool_terrain_growth: tuple[int, int] = (0, 2),
-                 line_terrain_amount: tuple[int, int] = (0, 0),
+                 line_terrain_amount: tuple[int, int] = (0, 0), object_terrain_amount: tuple[int, int] = (0, 0),
                  obstacle_coverage: tuple[float, float] = (0.1, 0.3),
                  large_obstacles: tuple[int] | None = None, large_obstacle_amount: int = 4,
                  large_obstacle_growth: tuple[int, int] = (0, 1),
@@ -34,12 +36,14 @@ class Area():
         self.pool_terrain_amount: tuple[int, int] = pool_terrain_amount
         self.pool_terrain_growth: tuple[int, int] = pool_terrain_growth
         self.line_terrain_amount: tuple[int, int] = line_terrain_amount
+        self.object_terrain_amount: tuple[int, int] = object_terrain_amount
         self.large_obstacle_growth: tuple[int, int] = large_obstacle_growth
         self.obstacle_coverage: tuple[float, float] = obstacle_coverage
         self.large_obstacles: tuple[int] = large_obstacles
         self.large_obstacle_amount: int = large_obstacle_amount
         self.base_inaccessible_tile: int = base_inaccessible_tile
         self.inaccessible_tile_amount: int = inaccessible_tile_amount
+        self.encounters: list[Encounter] = []
     
     def add_room(self, room: Room) -> None:
         self.rooms.append(room)
@@ -55,19 +59,38 @@ class Area():
         else:
             return self.rooms
     
-    def construct_locations(self, grid_size: int = 15) -> None:
-        """Constructs the locations of the area."""
+    def setup_locations(self, grid_size: int = 15) -> None:
+        """Sets up the locations of the area."""
         for room in self.rooms:
-            room.create_location(allowed_obstacles=self.allowed_obstacles,
+            room.setup_location(allowed_obstacles=self.allowed_obstacles,
                                  width=grid_size,
                                  height=grid_size,
                                  gap=3,
                                  pool_terrain_amount=self.pool_terrain_amount,
                                  pool_terrain_growth=self.pool_terrain_growth,
                                  line_terrain_amount=self.line_terrain_amount,
+                                 object_terrain_amount=self.object_terrain_amount,
                                  corner_terrain_growth=self.large_obstacle_growth,
                                  obstacle_coverage=self.obstacle_coverage,
                                  base_tile=self.base_tile)
+    
+    def build_locations(self) -> None:
+        """Builds the locations of the area."""
+        for room in self.rooms:
+            room.build_location()
+    
+    def add_encounter(self, encounter: Encounter) -> None:
+        """Adds an encounter to the area."""
+        self.encounters.append(encounter)
+    
+    def get_encounter(self, quest_log: QuestLog) -> Encounter:
+        """Returns a random encounter from the area.
+        Requirements are checked with the quest log until a valid encounter is found."""
+        encounter = random.choices(self.encounters, weights=[party.encounter_weight for party in self.encounters], k=1)[0]
+        
+        while not encounter.check_requirements(quest_log):
+            encounter = random.choices(self.encounters, weights=[party.encounter_weight for party in self.encounters], k=1)[0]
+        return encounter
 
     def copy(self) -> Self:
         """Returns a copy of the area. The rooms are not copied."""
@@ -77,6 +100,7 @@ class Area():
                     pool_terrain_amount=self.pool_terrain_amount,
                     pool_terrain_growth=self.pool_terrain_growth,
                     line_terrain_amount=self.line_terrain_amount,
+                    object_terrain_amount=self.object_terrain_amount,
                     large_obstacle_growth=self.large_obstacle_growth,
                     obstacle_coverage=self.obstacle_coverage,
                     large_obstacles=self.large_obstacles,
@@ -84,6 +108,7 @@ class Area():
                     base_inaccessible_tile=self.base_inaccessible_tile,
                     inaccessible_tile_amount=self.inaccessible_tile_amount)
         area.rooms = []
+        area.encounters = self.encounters
         return area
 
     def __len__(self) -> int:

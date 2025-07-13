@@ -7,12 +7,15 @@ from room import Room
 from combat_input import CombatInput
 from combat import Combat
 from conversation import Conversation
-from quest_log import QuestLog
+from quest_log import QuestLog, Quest
 from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
 from mechanics.storage import Storage
+from mechanics.inventory import Inventory
 from random import randrange
-from animation import TextAscendAnimation, FadeAnimation
+from animation import TextAscendAnimation, FadeAnimation, TextWriteAnimation
+from user_interface import UserInterface
+from encounter import Encounter
 import pygame
 import sys
 
@@ -22,19 +25,24 @@ class Game():
         self.CELL_SIZE = 32
         self.GRID_SIZE = 15
         self.FPS = 30
-        self.FADEOUT_SPEED = 5
+        self.FADEOUT_SPEED = 8
         self.SCREEN_WIDTH = self.GRID_SIZE * self.CELL_SIZE
         self.SCREEN_HEIGHT = self.GRID_SIZE * self.CELL_SIZE
         self.COMBAT_MAP = pygame.image.load("resources/backgrounds/Plains.png")
         self.POINTER = pygame.image.load("resources/other/Pointer.png")
+        self.TEXT_SPEED = 2
 
         self.maze = None
         self.current_room = None
         self.current_location = None
+        self.current_area = None
         self.player = None
-        self.quest_log = QuestLog()
+        self.quest_log = None
         self.combat = None
         self.combat_input = None
+        self.conversation = None
+        self.encounter = None
+        self.inventory = None
         self.storage = Storage()
         self.animation_handler = AnimationHandler()
         self.fadeout = 0
@@ -49,7 +57,10 @@ class Game():
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
             Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
             Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
-            Location.FENCE: pygame.image.load("resources/obstacles/Fence.png"),
+            Location.FENCE_H: pygame.image.load("resources/obstacles/Fence_H.png"),
+            Location.FENCE_V: pygame.image.load("resources/obstacles/Fence_V.png"),
+            Location.OAK: pygame.image.load("resources/obstacles/Oak_ABOVE.png"),
+            Location.HOUSE_3x2: pygame.image.load("resources/obstacles/House_3x2_ORANGE.png"),
             Location.BRIDGE_H: None,
             Location.BRIDGE_V: None
         }
@@ -61,6 +72,7 @@ class Game():
         pygame.display.set_caption("Random RPG")
         self.clock = pygame.time.Clock()
         self.running = True
+        self.user_interface = UserInterface(self.screen)
         
         # Initialize font for UI
         self.font = pygame.font.Font(None, 24)
@@ -151,6 +163,13 @@ class Game():
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Forest enemies aren't too strong
+        area_3.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=1))
+        area_3.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
+        area_3.add_encounter(Encounter(["Goblin"], [1], encounter_weight=1))
+        area_3.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
+        area_3.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1))
+        
         # Should get the densest forest terrain
         # Not much variation, except for a large lake somewhere
         area_4 = Area(4, "Deep forest",
@@ -166,6 +185,15 @@ class Game():
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
         
+        # Deep forest enemies are weak but numerous
+        # A high defense stat will be useful here
+        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Black_bat", "Black_bat"], [1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Black_bat", "Black_bat", "Black_bat", "Black_bat"], [1, 1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Gray_wolf", "Gray_wolf"], [1, 1], encounter_weight=1))
+
         # Should get a lot of water and some lake areas
         # Water shouldn't expand much
         # Forest terrain is dense and there may be some fences
@@ -186,16 +214,26 @@ class Game():
         # as well as some ponds and fences
         area_6 = Area(6, "Meadows",
                       base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.WATER, Location.FOREST, Location.FENCE),
+                      allowed_obstacles=(Location.WATER, Location.FOREST, Location.FENCE, Location.OAK),
                       pool_terrain_amount=(-1, 2),
                       pool_terrain_growth=(0, 10),
                       line_terrain_amount=(-1, 3),
+                      object_terrain_amount=(0, 2),
                       large_obstacle_growth=(0, 0),
                       obstacle_coverage=(0.1, 0.2),
                       large_obstacles=tuple(),
                       large_obstacle_amount=0,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
+        
+        # The encounters in the meadows are quite weak
+        area_6.add_encounter(Encounter(["Red_spider"], [1], encounter_weight=3))
+        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=3))
+        area_6.add_encounter(Encounter(["Goblin"], [1], encounter_weight=3, reward=5))
+        # Maybe a quest encounter?
+        conversation = Conversation([])
+        conversation.add_quest("The wolf", 2, progress_quest=True)
+        area_6.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1, conversation=conversation))
         
         # Should get a lot of mountain terrain,
         # focusing on internal mountains over edge mountains
@@ -212,6 +250,13 @@ class Game():
                       large_obstacle_amount=3,
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=0)
+        
+        # For the hills, the enemies can be strong but not numerous
+        # A high strength stat will be useful here
+        area_7.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1))
+        area_7.add_encounter(Encounter(["Orc"], [1], encounter_weight=2))
+        area_7.add_encounter(Encounter(["Goblin"], [1], encounter_weight=1))
+        area_7.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
 
         # Should get multiple lakes surrounded by mountains
         # Land areas will get less water and more mountains
@@ -246,41 +291,103 @@ class Game():
                 print(f"Attempt {tries} failed: {e}")
                 self.maze = maze.copy()
         
+        print(self.maze.get_layout())
+
         self.maze.place_large_obstacles()
         self.maze.place_inaccessible_tiles()
-        self.maze.construct_locations()
-        print(self.maze.get_layout())
+        self.maze.setup_locations()
+
+        # TODO: I should give the rooms distinct room numbers
+        # If the room connects to another area,
+        # I want to control which room number it gets
+        # I want to create single-entrance rooms
+        # and assign specific room numbers to them
+        # After that, I can assign room numbers at random
+        # With that done, I can override room settings based on room number
+        # Finish by calling build_locations()
+        # For now, I should add a village room
 
         meadows = self.maze.areas[6]
         rooms = meadows.get_rooms(shuffle=True)
         
         self.current_room = rooms[0]
+        self.current_room.location.safe_zone = True
         print(f"Current room: {(self.current_room.x, self.current_room.y)}")
         self.current_location = self.current_room.location
-        start_position = self.current_location.get_random_position()
 
+        self.current_location.line_terrain_amount = (3, 3)
+        self.current_location.pool_terrain_amount = (0, 0)
+        # Some houses...
+        self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
+        self.current_location.allowed_obstacles.append(Location.OAK)
+        self.current_location.object_terrain_amount = (5, 5)
+
+        # Add some NPCs for testing
+        innkeeper = Unit("Isabel", pygame.image.load("resources/people/Commoner_female.png"))
+        innkeeper_offer = Conversation(["Good day, traveler. You look weary.", "Let me heal your wounds."])
+        innkeeper_offer.add_reward(heal=True, restore=True)
+        innkeeper.add_conversation(innkeeper_offer)
+
+        blacksmith = Unit("Henry", pygame.image.load("resources/people/Commoner_male.png"))
+        blacksmith_greeting = Conversation(["Hello there! How can I help you today?"])
+        blacksmith.add_conversation(blacksmith_greeting)
+
+        blacksmith_quest = Conversation(["Hey there.\nYou're a traveler?",
+                                         "Lately, the meadow's been infested with spiders.\nStay safe out there.",
+                                         "I'm getting a bit worried about our hunter.\nHe lives alone in a cabin.",
+                                         "Can you carry a message to him?\nI'm sure he'll reward you\nfor your troubles.",
+                                         "Excellent!\nHis cabin is in the meadows."])
+        blacksmith_quest.add_quest("The hunter", 0)
+        blacksmith.add_conversation(blacksmith_quest)
+
+        rooms[0].location.characters.append(innkeeper)
+        rooms[0].location.characters.append(blacksmith)
+        
+        hunter = Unit("Richard", pygame.image.load("resources/people/Commoner_male.png"))
+        hunter_greeting = Conversation(["Good day."])
+        hunter.add_conversation(hunter_greeting)
+
+        hunter_response = Conversation(["A message from the village?",
+                                        "Those spiders are a nuisance\nbut I can handle them just fine.",
+                                        "Anyways, it's dangerous out here.\nYou'll need a weapon.",
+                                        "This is the Silkcutter.\nYou'll feel nimbler when you use it."])
+        hunter_response.add_quest("The hunter", 1, quest_initiation="The wolf")
+        hunter_response.add_reward(item="Silkcutter")
+        hunter.add_conversation(hunter_response)
+
+        hunter_offer = Conversation(["Lately, a vicious wolf\nhas been attacking the farmers.",
+                                     "If you can slay it,\nI'll give you a reward.",
+                                     "I don't know where it is.\nIf you wander around long enough,\nit'll find you."])
+        hunter_offer.add_quest("The wolf", 1, progress_quest=True)
+        hunter.add_conversation(hunter_offer)
+
+        hunter_reward = Conversation(["I heard you slayed that damned wolf.", "Here's your reward, as promised.", "It's a sturdy wolf hide."])
+        hunter_reward.add_quest("The wolf", 3, progress_quest=True)
+        hunter_reward.add_reward(item="Gray hide")
+        hunter.add_conversation(hunter_reward)
+
+        rooms[1].location.characters.append(hunter)
+
+        # Build the locations
+        self.maze.build_locations()
+
+        print(self.current_location.get_raw_layout())
+
+        # Add the player
+        start_position = self.current_location.get_random_position()
         self.player = Unit("Hero", pygame.image.load("resources/people/Player_small.png"),
                            team=1, grid_x=start_position[0], grid_y=start_position[1])
         hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
                       "Agility": 3, "Intelligence": 0, "Stamina": 0,
                       "Rank": 4, "Constitution": 6}
         self.player.set_stats(CharacterStats(hero_stats))
-
-        # I'm just adding stuff I really need
-        # The player's going to die right away if he doesn't get a good nights rest at the inn
-        # I don't want to manually add all the characters here
-        innkeeper = Unit("Isabel", pygame.image.load("resources/people/Commoner_female.png"))
-        # Yeah, she's not making any money
-        # Then again, I haven't even created an actual inn
-        innkeeper_offer = Conversation(["Good evening, traveler. You look weary.", "You may rest here free of charge."])
-        innkeeper_offer.add_reward(heal=True, restore=True)
-        innkeeper.add_conversation(innkeeper_offer)
-        rooms[1].location.characters.append(innkeeper)
-        rooms[1].location.place_all_characters()
+        self.inventory = Inventory()
+        self.quest_log = QuestLog()
     
     def set_room(self, room: Room):
         self.current_room = room
         self.current_location = room.location
+        self.current_area = self.maze.areas[room.area]
 
     def transition_check(self, x: int, y: int) -> bool:
         if x < 0 or x >= self.GRID_SIZE or y < 0 or y >= self.GRID_SIZE:
@@ -315,16 +422,8 @@ class Game():
             
             if keys[pygame.K_l]:
                 npc = self.current_location.get_nearby_character(self.player.grid_x, self.player.grid_y)
-                if npc:
-                    # TODO: Got to talk with that NPC
-                    # This doesn't look too good, I'll fix it soon
-                    print(f"Talking with {npc.name}")
-                    conversation = self.quest_log.get_conversation(npc.conversations)
-                    if conversation:
-                        for message in conversation.messages:
-                            print(message)
-                        if conversation.heal and conversation.restore:
-                            self.player.rest()
+                if npc and not self.conversation:
+                    self.conversation = self.quest_log.get_conversation(npc.conversations)
             
             # Handle movement keys
             if keys[pygame.K_w]:
@@ -405,6 +504,36 @@ class Game():
         elif key == pygame.K_p:
             self.combat_input.undo_mode()
 
+    def process_conversation(self):
+        """Process conversation logic"""
+        if self.animation_handler.has_animations():
+            return
+        
+        message = self.conversation.get_message()
+
+        if message:
+            animation = TextWriteAnimation(self.user_interface, message, self.font,
+                                           speed=self.TEXT_SPEED)
+            self.animation_handler.add_animation(animation)
+        elif self.conversation.confirmation:
+            # Need to add yes and no options
+            # The combat_input can handle it but do I want to use it?
+            # Pass for now, I don't need it yet
+            pass
+        else:
+            if self.conversation.heal:
+                self.player.full_heal()
+            if self.conversation.restore:
+                self.player.full_restore()
+            if self.conversation.item:
+                self.inventory.add_item(self.storage.get_item(self.conversation.item),
+                                        equip_to=self.player)
+            if self.conversation.reward:
+                self.inventory.add_coins(self.conversation.reward)
+            self.quest_log.finish_conversation(self.conversation)
+            self.conversation.reset()
+            self.conversation = None
+
     def process_combat(self):
         """Process combat logic and handle animations."""
         if self.animation_handler.has_animations():
@@ -416,6 +545,7 @@ class Game():
         elif self.combat.phase == Combat.PHASE_VICTORY:
             print("Start combat fadeout")
             self.combat.phase = Combat.PHASE_FADEOUT
+            self.encounter.finish_encounter(self.quest_log)
             self.end_encounter()
         elif self.combat.phase == Combat.PHASE_DEFEAT:
             # TODO: Implement defeat logic
@@ -427,7 +557,7 @@ class Game():
                     unit,
                     start_alpha=255,
                     end_alpha=0,
-                    speed=4,
+                    speed=8,
                     callback=lambda: self.combat.remove_unit(unit))
                 self.animation_handler.add_animation(animation)
         elif self.combat_input.get_mode() == CombatInput.INACTIVE:
@@ -636,6 +766,8 @@ class Game():
                 if terrain == Location.SPRITE_STATION:
                     unit = self.current_location.get_character_at(x, y)
                     self.screen.blit(unit.sprite, unit.get_position())
+                elif terrain in (Location.ANONYMOUS_BLOCKING, Location.ANONYMOUS_ENTRANCE):
+                    pass
                 elif terrain != self.current_location.base_tile:
                     # I need to add passable terrain first, not here
                     # Otherwise I get a "dig-into-the-ground"-bug
@@ -645,7 +777,12 @@ class Game():
                 self.screen.blit(self.player.sprite, self.player.get_position())
                 self.player.sprite.set_alpha(self.player.get_alpha())
         
-        self.draw_ui()
+        # Moved to user_interface.py
+        # self.draw_ui()
+
+        if self.conversation:
+            self.user_interface.draw_main_panel()
+            self.user_interface.draw_message_panel()
 
         if self.fadeout_direction != 0:
             self.fade.set_alpha(self.fadeout)
@@ -686,24 +823,12 @@ class Game():
         self.screen.blit(area_text, (text_x, area_y))
         self.screen.blit(coords_text, (text_x, coords_y))
 
-    def encounter(self):
-        # Create some enemies at random
-        enemy_count = randrange(1, 7)
-        enemies = []
-        spider_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
-                        "Agility": 3, "Intelligence": 0, "Stamina": 0,
-                        "Rank": 4, "Constitution": 1}
-        for i in range(enemy_count):
-            enemy = Unit("Red spider", pygame.image.load("resources/enemies/Red_spider.png"), team=0)
-            enemy.set_stats(CharacterStats(spider_stats))
-            enemy.add_action(self.storage.get_action("Attack"))
-            enemies.append(enemy)
-        
-        self.combat_input = CombatInput(self.player, enemies)
+    def start_encounter(self):
+        self.encounter = self.current_area.get_encounter(self.quest_log)
+        self.encounter = self.encounter.instantiate(self.storage)
+        self.combat_input = CombatInput(self.player, self.encounter.units)
         self.combat_input.set_spells(["Fireball", "Heal"])
         self.combat = Combat(self.combat_input)
-        # That should be enough for now. Replace with something more robust later
-
         self.fadeout_direction = -1
         self.fadeout = 255 + self.FADEOUT_SPEED * self.fadeout_direction
     
@@ -716,10 +841,14 @@ class Game():
         self.fadeout = 0 + self.FADEOUT_SPEED * self.fadeout_direction
 
     def tick_encounter(self):
-        self.encounter_countdown -= 1
+        if self.current_location.safe_zone:
+            return
+        else:
+            self.encounter_countdown -= 1
+        
         if self.encounter_countdown <= 0:
             self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
-            self.encounter()
+            self.start_encounter()
     
     def tick_fadeout(self):
         self.fadeout += self.FADEOUT_SPEED * self.fadeout_direction
@@ -744,6 +873,10 @@ class Game():
                 self.process_combat()
                 self.draw_combat()
                 self.animation_handler.update()
+            elif self.conversation:
+                self.process_conversation()
+                self.animation_handler.update()
+                self.draw_location()
             else:
                 self.draw_location()
             

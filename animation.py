@@ -160,24 +160,20 @@ class TextAscendAnimation(Animation):
 
 
 class TextWriteAnimation(Animation):
-    def __init__(self, screen, x, y, message, font, speed=1, delay=60, callback=None):
+    def __init__(self, target_object, message, font, speed=1, delay=30, callback=None):
         super().__init__(0, callback)
-        self.screen = screen
-        self.x = x
-        self.y = y
+        self.target_object = target_object
         self.full_message = message
         self.current_message = ""
         self.font = font
         self.speed = speed
-        self.duration_frames = len(message) * speed + delay
+        self.duration_frames = floor(len(message) / speed) + delay
         self.delay = delay
     
     def animate(self):
         if self.current_message != self.full_message:
-            first_letter = self.current_frame * self.speed
-            last_letter = max((self.current_frame + 1) * self.speed, len(self.full_message))
+            first_letter = (self.current_frame - 1) * self.speed
+            last_letter = min(self.current_frame * self.speed, len(self.full_message))
             self.current_message += self.full_message[first_letter:last_letter]
-        
-        text = self.font.render(self.current_message, True, (255, 255, 255, 255))
-        self.screen.blit(text, (self.x, self.y))
+            self.target_object.set_message(self.current_message)
         

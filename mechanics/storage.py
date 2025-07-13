@@ -1,13 +1,16 @@
 import mechanics.action as action
 import mechanics.spellEffect as spellEffect
 import mechanics.item as item
+import unit
+from pygame import image
+from mechanics.characterStats import CharacterStats
+import json
 
 class Storage:
     def __init__(self):
         self.actions = {}
         self.spell_effects = {}
         self.items = {}
-        self.enemies = {}
         self._init_actions()
         self._init_items()
         
@@ -31,6 +34,12 @@ class Storage:
         new_item = item.Item("Spiders shawl",
                              "A light shawl with a faint red tone. It makes the wearer feel nimble.",
                              type=item.Item.MISC,
+                             agility=1)
+        self.items[new_item.name] = new_item
+
+        new_item = item.Item("Silkcutter",
+                             "A sharp dagger which Richard used to battle the spiders. It makes its wielder feel nimble.",
+                             type=item.Item.WEAPON,
                              agility=1)
         self.items[new_item.name] = new_item
 
@@ -79,6 +88,12 @@ class Storage:
                              resistance=1)
         self.items[new_item.name] = new_item
 
+        new_item = item.Item("Divine blade",
+                             "A blade which glows with divine energy.",
+                             type=item.Item.WEAPON,
+                             strength=100)
+        self.items[new_item.name] = new_item
+
     def get_action(self, name: str) -> action.Action:
         return self.actions[name]
     
@@ -88,3 +103,26 @@ class Storage:
     def get_item(self, name: str) -> item.Item:
         return self.items[name]
     
+    def get_enemy(self, name: str, level: int = 1) -> unit.Unit:
+        """Returns a single enemy with the given name."""
+        with open(f"resources/stats/{name}.json", "r") as file:
+            data = json.load(file)
+            actions = []
+
+            for move in data["moveset"]:
+                actions.append(self.get_action(move))
+                
+            enemy = unit.Unit(data["name"], image.load(f"resources/enemies/{name}.png"),
+                              team=0, level=level)
+            enemy.set_actions(actions)
+            enemy.set_stats(CharacterStats(data["stats"]))
+            return enemy
+
+    def get_enemies(self, names: list[str], levels: list[int]) -> list[unit.Unit]:
+        """Returns a list of enemies with the given names and levels."""
+        enemies = []
+
+        for name, level in zip(names, levels):
+            enemies.append(self.get_enemy(name, level))
+
+        return enemies

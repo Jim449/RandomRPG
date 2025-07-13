@@ -18,12 +18,16 @@ class Inventory:
         self.coins -= amount
         return True
     
-    def add_item(self, item: Item) -> None:
-        """Add an item to the inventory or increase its amount if it already exists."""
+    def add_item(self, item: Item, equip_to: Character = None) -> None:
+        """Add an item to the inventory or increase its amount if it already exists.
+        If equip_to is provided, the item is equipped to the character
+        but doesn't replace any existing equipment."""
         if item.name in self.items:
             self.items[item.name].amount += item.amount
         else:
             self.items[item.name] = item
+        if equip_to:
+            self.equip_to_character(equip_to, item, replace=False)
     
     def remove_item(self, item_name: str, amount: int = 1) -> bool:
         """
@@ -43,20 +47,20 @@ class Inventory:
             
         return True
     
-    def equip_to_character(self, character: Character, item: Item) -> None:
-        """Equip an item to a character"""
+    def equip_to_character(self, character: Character, item: Item,
+                           replace: bool = True) -> None:
+        """Equip an item to a character.
+        If replace is False, the item is only equipped if the character
+        doesn't have any equipment of that type."""
         if item.type == Item.WEAPON:
-            if character.weapon:
-                self.unequip_item(character.weapon)
-            character.weapon = item
+            if replace or not character.weapon:
+                character.weapon = item
         elif item.type == Item.ARMOR:
-            if character.armor:
-                self.unequip_item(character.armor)
-            character.armor = item
+            if replace or not character.armor:
+                character.armor = item
         elif item.type == Item.ACCESSORY:
-            if character.accessory:
-                self.unequip_item(character.accessory)
-            character.accessory = item
+            if replace or not character.accessory:
+                character.accessory = item
     
     def get_item(self, item_name: str) -> Optional[Item]:
         """Get an item from inventory by name"""
