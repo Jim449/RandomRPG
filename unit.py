@@ -3,9 +3,10 @@ from mechanics.character import Character
 from conversation import Conversation
 
 class Unit(Character):
-    def __init__(self, name: str, sprite: pygame.Surface, 
+    def __init__(self, name: str, sprite: pygame.Surface,
                  team: int = 1, grid_x: int = 0, grid_y: int = 0,
-                 level: int = 1):
+                 level: int = 1,
+                 blink_sprite: pygame.Surface = None):
         super().__init__(name=name, team=team, level=level)
         self.grid_x: int = grid_x
         self.grid_y: int = grid_y
@@ -21,6 +22,8 @@ class Unit(Character):
         self.speed_boost: bool = False
         self.alpha: int = 255
         self.sprite: pygame.Surface = sprite
+        self.blink_sprite: pygame.Surface = blink_sprite
+        self.flashing: bool = False
         self.conversations: list[Conversation] = []
     
     def move(self) -> bool:
@@ -119,6 +122,13 @@ class Unit(Character):
     def get_alpha(self) -> int:
         """Returns the unit's alpha."""
         return self.alpha
+    
+    def get_sprite(self) -> pygame.Surface:
+        """Returns the unit's sprite."""
+        if self.flashing:
+            return self.blink_sprite
+        else:
+            return self.sprite
     
     def add_conversation(self, conversation: Conversation) -> None:
         """Adds a conversation to the unit."""

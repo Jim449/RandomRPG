@@ -443,6 +443,11 @@ class Maze(Blueprint):
         """Builds the locations of the maze"""
         for area in self.areas:
             area.build_locations()
+    
+    def clear_room_numbers(self) -> None:
+        """Clears the room numbers of the maze"""
+        for room in self.rooms:
+            room.number = -1
 
     def copy(self) -> Self:
         """Returns a copy of the maze"""

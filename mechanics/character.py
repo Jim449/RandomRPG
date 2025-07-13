@@ -410,6 +410,8 @@ class Character:
 
         while self.experience >= self.EXPERIENCE_REQUIREMENT[self.level]:
             self.level += 1
+            self.calculate_health()
+            self.calculate_magic()
             if self.level == self.LEVEL_CAP:
                 self.experience = self.EXPERIENCE_REQUIREMENT[self.level - 1]
                 return True

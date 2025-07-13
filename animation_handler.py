@@ -1,4 +1,5 @@
 from animation import Animation
+from random import shuffle
 
 class AnimationHandler:
     def __init__(self):
@@ -17,6 +18,30 @@ class AnimationHandler:
             self.animations.append(animation)
         else:
             raise TypeError("animation must be an instance of Animation")
+    
+    def add_multiple_animations(self, animations: list[Animation],
+                                spacing: int = 0, randomize: bool = False):
+        """Adds multiple animations to the handler.
+        The animations will start with different timings, depending on the spacing.
+        If spacing is 0, all animations will start at once.
+        If randomize is True, the start order will be randomized."""
+        if randomize:
+            shuffle(animations)
+        
+        for i, animation in enumerate(animations):
+            animation.set_startup(i * spacing)
+            self.add_animation(animation)
+
+    def chain_animations(self, animation: Animation, chained_animations: list[Animation]):
+        """
+        Chain a list of animations to an existing animation.
+        
+        Args:
+            animation (Animation): The animation to chain to
+            chained_animations (list[Animation]): The animations to chain
+        """
+        animation.chained_animations = chained_animations
+        self.add_animation(animation)
     
     def create_idle_animation(self, duration_frames=30, callback=None):
         """
@@ -42,17 +67,17 @@ class AnimationHandler:
         """
         self.animations_to_remove.clear()
         
-        # Update all animations
         for animation in self.animations:
             if not animation.update():
                 # Animation completed, mark for removal
                 self.animations_to_remove.append(animation)
         
-        # Remove completed animations
         for animation in self.animations_to_remove:
+            animation.end()
+            for chained_animation in animation.chained_animations:
+                self.add_animation(chained_animation)
             self.animations.remove(animation)
         
-        # Return True if there are still animations running
         return len(self.animations) > 0
     
     def has_animations(self):

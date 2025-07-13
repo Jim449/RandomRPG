@@ -11,7 +11,7 @@ class Combat:
     PHASE_NEXT_ROUND = 3
     PHASE_VICTORY = 4
     PHASE_DEFEAT = 5
-    PHASE_FADEOUT = 6
+    PHASE_INACTIVE = 6
 
     def __init__(self, combat_input: CombatInput):
         self.combat_input = combat_input
@@ -161,8 +161,8 @@ class Combat:
             return True
         elif self.phase == self.PHASE_USE_ACTION:
             if not self.use_next_action():
+                self.clear_targeting()
                 self.phase = self.PHASE_END_ROUND
-                print("Noone left to act")
             return True
         elif self.phase == self.PHASE_END_ROUND:
             print("Ending round")

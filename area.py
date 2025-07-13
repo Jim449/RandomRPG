@@ -59,6 +59,22 @@ class Area():
         else:
             return self.rooms
     
+    def assign_room_numbers(self, start_number: int) -> None:
+        """Assigns room numbers to the rooms in the area."""
+        rooms = self.get_rooms(shuffle=True)
+        number = start_number
+        for room in rooms:
+            if room.number == -1:
+                room.number = number
+                number += 1
+    
+    def get_connecting_room(self, area_id: int) -> Room:
+        """Returns a room in the area which is connected to the given area."""
+        for room in self.rooms:
+            if room.area_connection == area_id:
+                return room
+        return None
+    
     def setup_locations(self, grid_size: int = 15) -> None:
         """Sets up the locations of the area."""
         for room in self.rooms:

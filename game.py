@@ -13,7 +13,7 @@ from mechanics.characterStats import CharacterStats
 from mechanics.storage import Storage
 from mechanics.inventory import Inventory
 from random import randrange
-from animation import TextAscendAnimation, FadeAnimation, TextWriteAnimation
+from animation import TextAscendAnimation, FadeAnimation, TextWriteAnimation, WalkDownAnimation, WalkUpAnimation, BlinkAnimation
 from user_interface import UserInterface
 from encounter import Encounter
 import pygame
@@ -297,32 +297,72 @@ class Game():
         self.maze.place_inaccessible_tiles()
         self.maze.setup_locations()
 
-        # TODO: I should give the rooms distinct room numbers
-        # If the room connects to another area,
-        # I want to control which room number it gets
-        # I want to create single-entrance rooms
-        # and assign specific room numbers to them
-        # After that, I can assign room numbers at random
-        # With that done, I can override room settings based on room number
-        # Finish by calling build_locations()
-        # For now, I should add a village room
-
+        great_mountains = self.maze.areas[0]
+        highlands = self.maze.areas[1]
+        coastline = self.maze.areas[2]
+        forest = self.maze.areas[3]
+        deep_forest = self.maze.areas[4]
+        river = self.maze.areas[5]
         meadows = self.maze.areas[6]
-        rooms = meadows.get_rooms(shuffle=True)
+        hills = self.maze.areas[7]
+        lakeside = self.maze.areas[8]
+
+        # Assign room numbers so that I can override room settings
+        # Rooms connecting to other areas get specific room numbers
+        # I may want to create single-entrance rooms
+        # and assign specific room numbers to them
+        self.maze.clear_room_numbers()
         
-        self.current_room = rooms[0]
+        meadows.get_connecting_room(forest.id).number = 0
+        meadows.get_connecting_room(hills.id).number = 1
+        meadows.assign_room_numbers(2)
+
+        forest.get_connecting_room(meadows.id).number = 9
+        forest.get_connecting_room(deep_forest.id).number = 10
+        forest.assign_room_numbers(11)
+
+        hills.get_connecting_room(meadows.id).number = 18
+        hills.get_connecting_room(deep_forest.id).number = 19
+        hills.get_connecting_room(lakeside.id).number = 20
+        hills.assign_room_numbers(21)
+
+        deep_forest.get_connecting_room(forest.id).number = 27
+        deep_forest.get_connecting_room(hills.id).number = 28
+        deep_forest.get_connecting_room(river.id).number = 29
+        deep_forest.get_connecting_room(highlands.id).number = 30
+        deep_forest.assign_room_numbers(31)
+        
+        river.get_connecting_room(deep_forest.id).number = 36
+        river.get_connecting_room(lakeside.id).number = 37
+        river.get_connecting_room(coastline.id).number = 38
+        river.assign_room_numbers(39)
+
+        lakeside.get_connecting_room(hills.id).number = 45
+        lakeside.get_connecting_room(river.id).number = 46
+        lakeside.assign_room_numbers(47)
+
+        coastline.get_connecting_room(river.id).number = 54
+        coastline.assign_room_numbers(55)
+
+        highlands.get_connecting_room(deep_forest.id).number = 63
+        highlands.get_connecting_room(great_mountains.id).number = 64
+        highlands.assign_room_numbers(65)
+
+        great_mountains.get_connecting_room(highlands.id).number = 72
+        great_mountains.assign_room_numbers(73)
+
+        # Starting room, a safe zone with healing NPCs
+        self.current_room = self.maze.get_room_of_number(2)
         self.current_room.location.safe_zone = True
         print(f"Current room: {(self.current_room.x, self.current_room.y)}")
         self.current_location = self.current_room.location
 
         self.current_location.line_terrain_amount = (3, 3)
         self.current_location.pool_terrain_amount = (0, 0)
-        # Some houses...
+        self.current_location.allowed_obstacles.remove(Location.OAK)
         self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
-        self.current_location.allowed_obstacles.append(Location.OAK)
-        self.current_location.object_terrain_amount = (5, 5)
+        self.current_location.object_terrain_amount = (4, 4)
 
-        # Add some NPCs for testing
         innkeeper = Unit("Isabel", pygame.image.load("resources/people/Commoner_female.png"))
         innkeeper_offer = Conversation(["Good day, traveler. You look weary.", "Let me heal your wounds."])
         innkeeper_offer.add_reward(heal=True, restore=True)
@@ -340,9 +380,17 @@ class Game():
         blacksmith_quest.add_quest("The hunter", 0)
         blacksmith.add_conversation(blacksmith_quest)
 
-        rooms[0].location.characters.append(innkeeper)
-        rooms[0].location.characters.append(blacksmith)
+        self.current_location.characters.append(innkeeper)
+        self.current_location.characters.append(blacksmith)
         
+        # Hunters cabin. Hands out quests
+        hunter_room = self.maze.get_room_of_number(3)
+        hunter_room.location.line_terrain_amount = (2, 2)
+        hunter_room.location.pool_terrain_amount = (1, 1)
+        hunter_room.location.allowed_obstacles.remove(Location.OAK)
+        hunter_room.location.allowed_obstacles.append(Location.HOUSE_3x2)
+        hunter_room.location.object_terrain_amount = (1, 1)
+
         hunter = Unit("Richard", pygame.image.load("resources/people/Commoner_male.png"))
         hunter_greeting = Conversation(["Good day."])
         hunter.add_conversation(hunter_greeting)
@@ -350,9 +398,10 @@ class Game():
         hunter_response = Conversation(["A message from the village?",
                                         "Those spiders are a nuisance\nbut I can handle them just fine.",
                                         "Anyways, it's dangerous out here.\nYou'll need a weapon.",
-                                        "This is the Silkcutter.\nYou'll feel nimbler when you use it."])
+                                        "This is the Silkcutter.\nYou'll feel nimbler when you use it.",
+                                        "You must be tired.\nTake a rest before you leave."])
         hunter_response.add_quest("The hunter", 1, quest_initiation="The wolf")
-        hunter_response.add_reward(item="Silkcutter")
+        hunter_response.add_reward(item="Silkcutter", heal=True, restore=True)
         hunter.add_conversation(hunter_response)
 
         hunter_offer = Conversation(["Lately, a vicious wolf\nhas been attacking the farmers.",
@@ -361,17 +410,17 @@ class Game():
         hunter_offer.add_quest("The wolf", 1, progress_quest=True)
         hunter.add_conversation(hunter_offer)
 
-        hunter_reward = Conversation(["I heard you slayed that damned wolf.", "Here's your reward, as promised.", "It's a sturdy wolf hide."])
+        hunter_reward = Conversation(["So you slayed that damned wolf.",
+                                      "Here, take this quarterstaff.\nIt's great for blocking enemy blows.",
+                                      "I'll give you some coins as well."])
         hunter_reward.add_quest("The wolf", 3, progress_quest=True)
-        hunter_reward.add_reward(item="Gray hide")
+        hunter_reward.add_reward(item="Quarterstaff", reward=30)
         hunter.add_conversation(hunter_reward)
 
-        rooms[1].location.characters.append(hunter)
+        hunter_room.location.characters.append(hunter)
 
         # Build the locations
         self.maze.build_locations()
-
-        print(self.current_location.get_raw_layout())
 
         # Add the player
         start_position = self.current_location.get_random_position()
@@ -480,9 +529,12 @@ class Game():
                 elif choice == "Cast spell":
                     self.combat_input.set_mode(CombatInput.SPELL_SELECT)
                 elif choice == "Run":
-                    # TODO: Implement run action
-                    print("Run selected")
-                    self.end_encounter()
+                    animation = FadeAnimation(self.fade,
+                                              start_alpha=0,
+                                              end_alpha=255,
+                                              speed=8,
+                                              callback=self.escape_encounter)
+                    self.animation_handler.add_animation(animation)
             elif mode == CombatInput.TARGETING:
                 enemy = self.combat_input.get_enemy()
                 if enemy:
@@ -538,19 +590,29 @@ class Game():
         """Process combat logic and handle animations."""
         if self.animation_handler.has_animations():
             pass
-        elif self.combat.phase == Combat.PHASE_FADEOUT:
-            # Do nothing until the fadeout is complete
-            # I may change how the fadeout works later
-            pass
+        # elif self.combat.phase == Combat.PHASE_FADEOUT:
+        #     # Do nothing until the fadeout is complete
+        #     # I may change how the fadeout works later
+        #     pass
         elif self.combat.phase == Combat.PHASE_VICTORY:
-            print("Start combat fadeout")
-            self.combat.phase = Combat.PHASE_FADEOUT
-            self.encounter.finish_encounter(self.quest_log)
-            self.end_encounter()
+            animation = FadeAnimation(
+                self.fade,
+                start_alpha=0,
+                end_alpha=255,
+                speed=8,
+                callback=self.end_encounter)
+            self.animation_handler.add_animation(animation)
+
         elif self.combat.phase == Combat.PHASE_DEFEAT:
-            # TODO: Implement defeat logic
-            # For now, I'll just let the game run forever
-            pass
+            # I don't have a main menu yet
+            # Just fade to black and end the game
+            self.combat.phase = Combat.PHASE_INACTIVE
+            animation = FadeAnimation(
+                self.fade,
+                start_alpha=0,
+                end_alpha=255,
+                speed=4)
+            self.animation_handler.add_animation(animation)
         elif self.combat.has_defeated_units():
             for unit in self.combat.defeated_units:
                 animation = FadeAnimation(
@@ -563,36 +625,62 @@ class Game():
         elif self.combat_input.get_mode() == CombatInput.INACTIVE:
             self.combat.process_turn()
 
-            # This will do for now but I need to determine
-            # which animations to play, if any
-            if self.combat.active_unit:
-                # Create an action animation (attack, spell cast, etc.)
-                action_animation_duration = 30  # 1 second at 30 FPS
-                self.animation_handler.create_idle_animation(
-                    duration_frames=action_animation_duration)
-            # TODO: I'm adding a health change animation here
-            # but it's a bit too early.
-            # I should wait until the action animation is complete
-            
-            for target in self.combat.current_targets:
-                if target.health_change < 0:
-                    health_color = (255, 0, 0)
-                elif target.health_change > 0:
-                    health_color = (0, 255, 0)
+            # Hopefully, these animations should look good
+            # They don't cover all cases
+            # but at this point, everyone's using basic attacks all the time
+            if self.combat.active_unit and self.combat.active_unit.team == 0:
+                forward_animation = WalkDownAnimation(self.combat.active_unit)
+                backward_animation = WalkUpAnimation(self.combat.active_unit)
+
+                # TODO: I should move that combat ui to the user_interface
+                # and set a proper position for the health text
+                if self.player.health_change < 0:
+                    damage_animation = TextAscendAnimation(
+                        self.screen,
+                        40,
+                        300,
+                        f"{-self.player.health_change}",
+                        font=self.health_font,
+                        color=(255, 0, 0),
+                        speed=2,
+                        fadeout=8)
+                    self.animation_handler.chain_animations(forward_animation, [backward_animation, damage_animation])
+                    self.player.display_health += self.player.health_change
+                    self.player.health_change = 0
                 else:
-                    continue
-                animation = TextAscendAnimation(
-                    self.screen,
-                    target.x + 32,
-                    target.y,
-                    f"{-target.health_change}",
-                    font=self.health_font,
-                    color=health_color,
-                    speed=2,
-                    fadeout=10)
-                self.animation_handler.add_animation(animation)
-                target.display_health += target.health_change
-                target.health_change = 0
+                    self.animation_handler.chain_animations(forward_animation, [backward_animation])
+
+                self.player.display_health = min(self.player.display_health, self.player.get_final_stat("MaxHealth"))
+            
+            elif self.combat.active_unit and self.combat.active_unit.team == 1:
+                damage_animations = []
+                blink_animations = []
+
+                for target in self.combat.current_targets:
+                    if target.health_change < 0:
+                        health_color = (255, 0, 0)
+                        blink_animations.append(BlinkAnimation(target))
+                    elif target.health_change > 0:
+                        health_color = (0, 255, 0)
+                    else:
+                        continue
+                    damage_animations.append(TextAscendAnimation(
+                        self.screen,
+                        target.x + 32,
+                        target.y,
+                        f"{-target.health_change}",
+                        font=self.health_font,
+                        color=health_color,
+                        speed=2,
+                        fadeout=8))
+                    target.display_health += target.health_change
+                    target.health_change = 0
+                # This will make everyone blink at the same time
+                # but the damage animations will have random delays
+                # If it doesn't look good, I have to pair the animations up
+                # Too bad I don't have an AOE attack yet
+                self.animation_handler.add_multiple_animations(blink_animations, spacing=0)
+                self.animation_handler.add_multiple_animations(damage_animations, spacing=5)
 
     def draw_combat_ui(self):
         """Draw the combat UI window at the bottom of the screen"""
@@ -731,21 +819,10 @@ class Game():
         self.screen.blit(self.COMBAT_MAP, (0, 0))
 
         for enemy in self.combat_input.get_enemy_list():
-            self.screen.blit(enemy.sprite, enemy.get_position())
-            enemy.sprite.set_alpha(enemy.get_alpha())
-
-        if self.fadeout_direction != 0:
-            self.fade.set_alpha(self.fadeout)
-            self.screen.blit(self.fade, (0, 0))
-            
-            if self.fadeout == 0:
-                self.combat_input.set_mode(CombatInput.INACTIVE)
-                self.fadeout_direction = 0
-            elif self.fadeout == 255:
-                self.combat = None
-                self.fadeout_direction = 0
+            self.screen.blit(enemy.get_sprite(), enemy.get_position())
+            enemy.get_sprite().set_alpha(enemy.get_alpha())
         
-        # Draw combat UI
+        self.screen.blit(self.fade, (0, 0))
         self.draw_combat_ui()
 
     def draw_location(self):
@@ -803,16 +880,13 @@ class Game():
         max_width = max(area_text.get_width(), coords_text.get_width())
         total_height = area_text.get_height() + coords_text.get_height() + 10  # 10px padding
         
-        # Position in top right corner with some margin
         margin = 10
         bg_x = self.SCREEN_WIDTH - max_width - margin * 2
         bg_y = margin
         
-        # Create semi-transparent background surface
         background = pygame.Surface((max_width + margin * 2, total_height), pygame.SRCALPHA)
         background.fill(self.ui_background_color)
         
-        # Blit background
         self.screen.blit(background, (bg_x, bg_y))
         
         # Blit text
@@ -827,18 +901,26 @@ class Game():
         self.encounter = self.current_area.get_encounter(self.quest_log)
         self.encounter = self.encounter.instantiate(self.storage)
         self.combat_input = CombatInput(self.player, self.encounter.units)
+        # Set test spells for now
         self.combat_input.set_spells(["Fireball", "Heal"])
         self.combat = Combat(self.combat_input)
-        self.fadeout_direction = -1
-        self.fadeout = 255 + self.FADEOUT_SPEED * self.fadeout_direction
-    
+        
+        animation = FadeAnimation(
+            self.fade,
+            start_alpha=255,
+            end_alpha=0,
+            speed=8)
+        self.animation_handler.add_animation(animation)
+        
     def end_encounter(self):
-        # Fades out the combat screen
-        # Combat will end in draw_combat when fadeout is complete
-        # I should add some victory text before this
-        self.combat_input.set_mode(CombatInput.CLEANUP)
-        self.fadeout_direction = 1
-        self.fadeout = 0 + self.FADEOUT_SPEED * self.fadeout_direction
+        self.encounter.finish_encounter(self.quest_log)
+        # Not the best place for this
+        # but it'll do for now
+        self.player.gain_experience(self.encounter.get_experience())
+        self.combat = None
+    
+    def escape_encounter(self):
+        self.combat = None
 
     def tick_encounter(self):
         if self.current_location.safe_zone:
@@ -850,13 +932,6 @@ class Game():
             self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
             self.start_encounter()
     
-    def tick_fadeout(self):
-        self.fadeout += self.FADEOUT_SPEED * self.fadeout_direction
-        if self.fadeout < 0:
-            self.fadeout = 0
-        elif self.fadeout > 255:
-            self.fadeout = 255
-
     def run(self):
         """Main game loop"""
         while self.running:
@@ -865,10 +940,7 @@ class Game():
             if self.player:
                 if self.player.move():
                     self.tick_encounter()
-            
-            if self.fadeout_direction != 0:
-                self.tick_fadeout()
-            
+                    
             if self.combat:
                 self.process_combat()
                 self.draw_combat()

@@ -26,7 +26,7 @@ class CombatInput:
         self.enemies = enemies.copy()
         self.units = [hero] + self.enemies
         self.mode_stack = []
-        self.mode = self.PREPARATION
+        self.mode = self.INACTIVE
         self.enemy_grid = [[None, None, None], [None, None], [None]]
         self.target_x = 0
         self.target_y = 0
@@ -221,7 +221,7 @@ class CombatInput:
     
     def undo_mode(self) -> None:
         """Undoes the last mode change."""
-        if self.mode_stack:
+        if len(self.mode_stack) > 1:
             self.mode_stack.pop()
             self.mode = self.mode_stack[-1]
     
