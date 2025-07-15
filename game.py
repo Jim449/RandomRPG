@@ -5,6 +5,7 @@ from location import Location
 from unit import Unit
 from room import Room
 from combat_input import CombatInput
+from adventure_menu import AdventureMenu
 from combat import Combat
 from conversation import Conversation
 from quest_log import QuestLog, Quest
@@ -40,6 +41,7 @@ class Game():
         self.quest_log = None
         self.combat = None
         self.combat_input = None
+        self.adventure_menu = None
         self.conversation = None
         self.encounter = None
         self.inventory = None
@@ -353,10 +355,12 @@ class Game():
 
         # Starting room, a safe zone with healing NPCs
         self.current_room = self.maze.get_room_of_number(2)
-        self.current_room.location.safe_zone = True
-        print(f"Current room: {(self.current_room.x, self.current_room.y)}")
         self.current_location = self.current_room.location
+        self.current_area = self.maze.areas[self.current_room.area]
+        
+        print(f"Current room: {(self.current_room.x, self.current_room.y)}")
 
+        self.current_room.location.safe_zone = True
         self.current_location.line_terrain_amount = (3, 3)
         self.current_location.pool_terrain_amount = (0, 0)
         self.current_location.allowed_obstacles.remove(Location.OAK)
@@ -432,6 +436,7 @@ class Game():
         self.player.set_stats(CharacterStats(hero_stats))
         self.inventory = Inventory()
         self.quest_log = QuestLog()
+        self.adventure_menu = AdventureMenu(self.player, self.inventory)
     
     def set_room(self, room: Room):
         self.current_room = room
@@ -459,9 +464,13 @@ class Game():
                 # Handle combat input
                 elif self.combat:
                     self.handle_combat_input(event.key)
+                elif self.adventure_menu.is_active():
+                    self.handle_adventure_menu_input(event.key)
         
         # Handle continuous movement (only when not in combat)
-        if self.player and not self.player.moving and not self.combat:
+        if self.player and not self.player.moving \
+            and not self.combat and not self.conversation \
+            and not self.adventure_menu.is_active():
             keys = pygame.key.get_pressed()
             
             # Check for speed boost
@@ -474,6 +483,9 @@ class Game():
                 if npc and not self.conversation:
                     self.conversation = self.quest_log.get_conversation(npc.conversations)
             
+            if keys[pygame.K_RETURN]:
+                self.adventure_menu.set_mode(AdventureMenu.MENU)
+
             # Handle movement keys
             if keys[pygame.K_w]:
                 if self.transition_check(self.player.grid_x, self.player.grid_y - 1):
@@ -556,6 +568,44 @@ class Game():
         elif key == pygame.K_p:
             self.combat_input.undo_mode()
 
+    def handle_adventure_menu_input(self, key):
+        """Handle keyboard input during adventure menu"""
+
+        mode = self.adventure_menu.get_mode()
+        
+        # Navigation keys
+        if key == pygame.K_UP or key == pygame.K_w:
+            self.adventure_menu.increase_y(-1)
+        elif key == pygame.K_DOWN or key == pygame.K_s:
+            self.adventure_menu.increase_y(1)
+        elif key == pygame.K_LEFT or key == pygame.K_a:
+            self.adventure_menu.increase_x(-1)
+        elif key == pygame.K_RIGHT or key == pygame.K_d:
+            self.adventure_menu.increase_x(1)
+        elif key == pygame.K_p:
+            self.adventure_menu.undo_mode()
+        elif key == pygame.K_RETURN:
+            self.adventure_menu.set_mode(AdventureMenu.INACTIVE)
+
+        elif key == pygame.K_l:
+            if mode == AdventureMenu.MENU:
+                choice = self.adventure_menu.get_menu_choice()
+                if choice == "Inventory":
+                    self.adventure_menu.open_inventory()
+                    self.adventure_menu.load_equipment()
+                elif choice == "Exit menu":
+                    self.adventure_menu.set_mode(AdventureMenu.INACTIVE)
+            elif mode == AdventureMenu.INVENTORY:
+                self.adventure_menu.set_mode(AdventureMenu.ITEM_DETAILS)
+            elif mode == AdventureMenu.ITEM_DETAILS:
+                item_choice = self.adventure_menu.get_item_choice()
+                if item_choice == "Equip":
+                    self.inventory.equip(self.player, self.adventure_menu.get_selected_item())
+                    self.adventure_menu.load_equipment()
+                    self.adventure_menu.undo_mode()
+                elif item_choice == "Cancel":
+                    self.adventure_menu.undo_mode()
+
     def process_conversation(self):
         """Process conversation logic"""
         if self.animation_handler.has_animations():
@@ -606,7 +656,7 @@ class Game():
         elif self.combat.phase == Combat.PHASE_DEFEAT:
             # I don't have a main menu yet
             # Just fade to black and end the game
-            self.combat.phase = Combat.PHASE_INACTIVE
+            self.combat.phase = Combat.PHASE_VOID
             animation = FadeAnimation(
                 self.fade,
                 start_alpha=0,
@@ -682,138 +732,6 @@ class Game():
                 self.animation_handler.add_multiple_animations(blink_animations, spacing=0)
                 self.animation_handler.add_multiple_animations(damage_animations, spacing=5)
 
-    def draw_combat_ui(self):
-        """Draw the combat UI window at the bottom of the screen"""
-        if not self.combat_input or self.combat_input.get_mode() in (CombatInput.PREPARATION, CombatInput.CLEANUP):
-            return
-        
-        # UI dimensions
-        ui_width = 480
-        ui_height = 128
-        ui_x = 0
-        ui_y = self.SCREEN_HEIGHT - ui_height
-        
-        # Menu subwindow dimensions  
-        menu_subwindow_width = 80
-        menu_subwindow_height = ui_height
-        menu_subwindow_x = ui_x
-        menu_subwindow_y = ui_y
-        
-        # Spell subwindow dimensions
-        spell_subwindow_width = 320
-        spell_subwindow_height = ui_height
-        spell_subwindow_x = menu_subwindow_x + menu_subwindow_width
-        spell_subwindow_y = ui_y
-        
-        # Colors
-        ui_bg_color = (40, 40, 40, 200)  # Dark gray with transparency
-        subwindow_bg_color = (20, 20, 20, 220)  # Darker gray
-        text_color = (255, 255, 255)  # White
-        health_color = (0, 0, 0)
-        highlight_color = (100, 150, 255)  # Light blue for selected option
-        
-        # Draw main UI background
-        ui_surface = pygame.Surface((ui_width, ui_height), pygame.SRCALPHA)
-        ui_surface.fill(ui_bg_color)
-        self.screen.blit(ui_surface, (ui_x, ui_y))
-        
-        # Draw menu subwindow background
-        menu_subwindow_surface = pygame.Surface((menu_subwindow_width, menu_subwindow_height), pygame.SRCALPHA)
-        menu_subwindow_surface.fill(subwindow_bg_color)
-        self.screen.blit(menu_subwindow_surface, (menu_subwindow_x, menu_subwindow_y))
-        
-        if self.combat_input.get_mode() == CombatInput.TARGETING:
-            self.screen.blit(self.POINTER, self.combat_input.get_target_pointer())
-        elif self.combat_input.get_mode() == CombatInput.MASS_TARGETING:
-            for pointer in self.combat_input.get_mass_pointers():
-                self.screen.blit(self.POINTER, pointer)
-        
-        health_text = self.health_font.render(f"HP {self.player.display_health} / {self.player.get_final_stat("MaxHealth")}", True, health_color)
-        magic_text = self.health_font.render(f"MP {self.player.get_final_stat("Magic")} / {self.player.get_final_stat("MaxMagic")}", True, health_color)
-        self.screen.blit(health_text, (20, ui_y - 20))
-        self.screen.blit(magic_text, (400, ui_y - 20))
-
-        # Draw menu options in the menu subwindow
-        if self.combat_input.has_mode(CombatInput.MENU):
-            menu_options = self.combat_input.menu_options
-            selected_index = self.combat_input.menu_y
-            
-            # Calculate text positioning
-            text_start_y = menu_subwindow_y + 10
-            line_height = 25
-            text_margin = 5
-            
-            for i, option in enumerate(menu_options):
-                # Determine text color based on selection
-                current_text_color = highlight_color if i == selected_index else text_color
-                
-                # Render text
-                text_surface = self.combat_font.render(option, True, current_text_color)
-                text_y = text_start_y + (i * line_height)
-                
-                # Draw selection background for highlighted option
-                if i == selected_index:
-                    selection_rect = pygame.Rect(menu_subwindow_x + 2, text_y - 2, menu_subwindow_width - 4, line_height - 2)
-                    pygame.draw.rect(self.screen, (50, 80, 150, 100), selection_rect)
-                
-                # Draw text
-                self.screen.blit(text_surface, (menu_subwindow_x + text_margin, text_y))
-        
-        # Draw spell subwindow if spell selection is active
-        if self.combat_input.has_mode(CombatInput.SPELL_SELECT):
-            # Draw spell subwindow background
-            spell_subwindow_surface = pygame.Surface((spell_subwindow_width, spell_subwindow_height), pygame.SRCALPHA)
-            spell_subwindow_surface.fill(subwindow_bg_color)
-            self.screen.blit(spell_subwindow_surface, (spell_subwindow_x, spell_subwindow_y))
-            
-            # Get spell options and selection
-            spell_options = self.combat_input.spell_options
-            selected_x = self.combat_input.submenu_x
-            selected_y = self.combat_input.submenu_y
-            
-            # Calculate grid layout
-            grid_cols = 4
-            grid_rows = 4
-            cell_width = (spell_subwindow_width - 20) // grid_cols  # 20px total margin
-            cell_height = (spell_subwindow_height - 20) // grid_rows  # 20px total margin
-            start_x = spell_subwindow_x + 10
-            start_y = spell_subwindow_y + 10
-            
-            # Draw spell grid
-            for row in range(grid_rows):
-                for col in range(grid_cols):
-                    spell_name = spell_options[row][col]
-                    
-                    # Calculate cell position
-                    cell_x = start_x + (col * cell_width)
-                    cell_y = start_y + (row * cell_height)
-                    
-                    # Determine if this cell is selected
-                    is_selected = (col == selected_x and row == selected_y)
-                    
-                    # Draw selection background for highlighted spell
-                    if is_selected:
-                        selection_rect = pygame.Rect(cell_x, cell_y, cell_width - 2, cell_height - 2)
-                        pygame.draw.rect(self.screen, (50, 80, 150, 100), selection_rect)
-                    
-                    # Draw spell name if it exists
-                    if spell_name:
-                        # Determine text color
-                        current_text_color = highlight_color if is_selected else text_color
-                        
-                        # Render text (truncate if too long)
-                        display_name = spell_name
-                        if len(display_name) > 10:  # Adjust based on cell width
-                            display_name = display_name[:7] + "..."
-                        
-                        text_surface = self.combat_font.render(display_name, True, current_text_color)
-                        
-                        # Center text in cell
-                        text_x = cell_x + (cell_width - text_surface.get_width()) // 2
-                        text_y = cell_y + (cell_height - text_surface.get_height()) // 2
-                        
-                        self.screen.blit(text_surface, (text_x, text_y))
-
     def draw_combat(self):
         """Draws the combat map"""
         self.screen.blit(self.COMBAT_MAP, (0, 0))
@@ -823,7 +741,24 @@ class Game():
             enemy.get_sprite().set_alpha(enemy.get_alpha())
         
         self.screen.blit(self.fade, (0, 0))
-        self.draw_combat_ui()
+        self.user_interface.draw_main_panel()
+        self.user_interface.draw_health_and_magic(self.player)
+
+        # I may want to draw some messages
+        # I need a condition to check if there are messages
+        # self.user_interface.draw_message_panel()
+
+        if self.combat_input.has_mode(CombatInput.MENU):
+            self.user_interface.draw_left_panel(self.combat_input.menu_options,
+                                                self.combat_input.menu_y)
+        if self.combat_input.has_mode(CombatInput.SPELL_SELECT):
+            self.user_interface.draw_spell_panel(self.combat_input.spell_options,
+                                                 self.combat_input.submenu_x,
+                                                 self.combat_input.submenu_y)
+        if self.combat_input.get_mode() == CombatInput.TARGETING:
+            self.user_interface.draw_pointer(self.combat_input)
+        elif self.combat_input.get_mode() == CombatInput.MASS_TARGETING:
+            self.user_interface.draw_mass_pointers(self.combat_input)
 
     def draw_location(self):
         """Draws the current location terrain on screen"""
@@ -854,48 +789,28 @@ class Game():
                 self.screen.blit(self.player.sprite, self.player.get_position())
                 self.player.sprite.set_alpha(self.player.get_alpha())
         
-        # Moved to user_interface.py
-        # self.draw_ui()
+        # self.user_interface.draw_overview(self.player, self.current_area.name)
 
         if self.conversation:
             self.user_interface.draw_main_panel()
             self.user_interface.draw_message_panel()
+        elif self.adventure_menu.is_active():
+            self.user_interface.draw_main_panel()
+            self.user_interface.draw_overview(self.player, self.current_area.name)
 
-        if self.fadeout_direction != 0:
-            self.fade.set_alpha(self.fadeout)
-            self.screen.blit(self.fade, (0, 0))
+            if self.adventure_menu.get_mode() == AdventureMenu.MENU:
+                self.user_interface.draw_left_box(self.adventure_menu.menu_options,
+                                                  self.adventure_menu.menu_x,
+                                                  self.adventure_menu.menu_y)
+            elif self.adventure_menu.has_mode(AdventureMenu.INVENTORY):
+                self.user_interface.draw_spell_panel(self.adventure_menu.items,
+                                                  self.adventure_menu.submenu_x,
+                                                  self.adventure_menu.submenu_y)
+                self.user_interface.draw_info_panel(self.adventure_menu.get_equipment_info())
 
-    def draw_ui(self):
-        """Draw UI elements like area name and room coordinates"""
-        if not self.current_room:
-            return
-
-        area = self.maze.areas[self.current_room.area]
-        area_name = area.name
-        room_coords = f"Room ({self.current_room.x}, {self.current_room.y})"
-        
-        area_text = self.font.render(area_name, True, self.ui_text_color)
-        coords_text = self.font.render(room_coords, True, self.ui_text_color)
-        
-        max_width = max(area_text.get_width(), coords_text.get_width())
-        total_height = area_text.get_height() + coords_text.get_height() + 10  # 10px padding
-        
-        margin = 10
-        bg_x = self.SCREEN_WIDTH - max_width - margin * 2
-        bg_y = margin
-        
-        background = pygame.Surface((max_width + margin * 2, total_height), pygame.SRCALPHA)
-        background.fill(self.ui_background_color)
-        
-        self.screen.blit(background, (bg_x, bg_y))
-        
-        # Blit text
-        text_x = bg_x + margin
-        area_y = bg_y + margin // 2
-        coords_y = area_y + area_text.get_height() + 5
-        
-        self.screen.blit(area_text, (text_x, area_y))
-        self.screen.blit(coords_text, (text_x, coords_y))
+                if self.adventure_menu.has_mode(AdventureMenu.ITEM_DETAILS):
+                    self.user_interface.draw_left_panel(self.adventure_menu.item_options,
+                                                        self.adventure_menu.details_y)
 
     def start_encounter(self):
         self.encounter = self.current_area.get_encounter(self.quest_log)

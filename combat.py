@@ -12,6 +12,7 @@ class Combat:
     PHASE_VICTORY = 4
     PHASE_DEFEAT = 5
     PHASE_INACTIVE = 6
+    PHASE_VOID = 7
 
     def __init__(self, combat_input: CombatInput):
         self.combat_input = combat_input

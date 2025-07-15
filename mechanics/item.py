@@ -32,4 +32,7 @@ class Item:
     
     def __repr__(self) -> str:
         return f"{self.name} ({self.amount})"
+    
+    def __str__(self) -> str:
+        return self.name
 
