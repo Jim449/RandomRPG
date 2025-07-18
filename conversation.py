@@ -13,18 +13,21 @@ class Conversation():
         self.progress_quest: bool = True
         self.current_message = 0
         self.confirmation: bool = False
+        self.confirmation_y: int = 0
+        self.prompt: str = None
         self.cost: int = 0
         self.reward: int = 0
         self.item: str = None
         self.heal: bool = False
         self.restore: bool = False
 
-    def add_accept_conversation(self, conversation: Self, cost: int = 0) -> None:
+    def add_accept_conversation(self, conversation: Self, prompt: str, cost: int = 0) -> None:
         """Adds a conversation that will be triggered
         if the player selects yes at the prompt.
         The player may have to pay a cost to trigger the conversation."""
         self.accept_conversation = conversation
         self.confirmation = True
+        self.prompt = prompt
         self.cost = cost
     
     def add_reject_conversation(self, conversation: Self) -> None:
@@ -64,6 +67,24 @@ class Conversation():
         else:
             return None
     
+    def awaiting_confirmation(self) -> bool:
+        """Returns True if the conversation is awaiting confirmation."""
+        if self.confirmation and self.current_message == len(self.messages):
+            return True
+        else:
+            return False
+    
+    def increase_confirmation_y(self) -> None:
+        if self.confirmation_y == 0:
+            self.confirmation_y = 1
+        else:
+            self.confirmation_y = 0
+    
+    def get_confirmation_y(self) -> int:
+        """Returns the current confirmation y."""
+        return self.confirmation_y
+    
     def reset(self) -> None:
         """Resets the conversation to the first message."""
         self.current_message = 0
+        self.confirmation_y = 0

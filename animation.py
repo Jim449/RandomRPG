@@ -169,7 +169,7 @@ class TextAscendAnimation(Animation):
 
 
 class TextWriteAnimation(Animation):
-    def __init__(self, target_object, message, font, speed=1, delay=30, callback=None):
+    def __init__(self, target_object, message, font, speed=1, delay=0, callback=None):
         super().__init__(0, callback)
         self.target_object = target_object
         self.full_message = message
@@ -185,6 +185,9 @@ class TextWriteAnimation(Animation):
             last_letter = min(self.current_frame * self.speed, len(self.full_message))
             self.current_message += self.full_message[first_letter:last_letter]
             self.target_object.set_message(self.current_message)
+    
+    def end(self):
+        self.target_object.set_message(self.full_message)
 
 
 class WalkDownAnimation(Animation):

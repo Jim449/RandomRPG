@@ -1,4 +1,5 @@
 from mechanics.action import Action
+from typing import Any
 
 class Item:
     WEAPON = "Weapon"
@@ -29,6 +30,9 @@ class Item:
     
     def has_active(self) -> bool:
         return self.action and self.action.type == Action.ACTIVE
+    
+    def use(self, user: Any) -> str:
+        return self.action.use(user, user)
     
     def __repr__(self) -> str:
         return f"{self.name} ({self.amount})"

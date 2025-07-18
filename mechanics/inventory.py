@@ -40,6 +40,16 @@ class Inventory:
         except IndexError:
             return False
     
+    def use_item(self, index: int, character: Character) -> str:
+        """Use an item from the inventory"""
+        item = self.items[index]
+        if item.type == Item.CONSUMABLE:
+            message = f"{character.name} used {item.name}."
+            message += item.use(character)
+            self.remove_item(index)
+            return message
+        return ""
+    
     def equip(self, character: Character, item: Item,
               replace: bool = True) -> None:
         """Equip an item to a character.

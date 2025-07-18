@@ -7,6 +7,7 @@ from random import random
 from math import floor
 
 class Character:
+    """Describes a characters combat abilities."""
     LEVEL_BONUS = 0.2
     LEVEL_CAP = 20
     EXPERIENCE_REQUIREMENT = (0, 100, 400, 900, 1600,
@@ -135,6 +136,12 @@ class Character:
         if self.accessory:
             value += self.accessory.agility
         return value
+    
+    def get_escape_value(self) -> float:
+        """Returns the characters skill at escaping combat
+        or the enemys skill at preventing player escape."""
+        rank = self.get_base_stat(self.RANK)
+        return rank**2 * (1 + self.level * self.LEVEL_BONUS)
     
     def calculate_health(self) -> None:
         """Sets the full health value."""
@@ -355,6 +362,7 @@ class Character:
     def start_round(self) -> None:
         """Reset character state at the start of their turn."""
         self.action_points = self.max_action_points
+        self.calculate_speed()
     
     def end_round(self) -> str:
         """Clean up character state at the end of their turn."""
@@ -379,20 +387,26 @@ class Character:
         """Heal the character."""
         self.health_change = self.base_stats.restore_stat(self.HP, self.MAX_HP, amount)
     
-    def full_heal(self) -> None:
+    def full_heal(self, amount: int = 1000) -> None:
         """Fully heals the character."""
-        self.base_stats.restore_stat(self.MAX_HP, self.FULL_HP, 1000)
-        self.heal(1000)
+        self.base_stats.restore_stat(self.MAX_HP, self.FULL_HP, amount)
+        self.heal(amount)
     
     def restore(self, amount: int) -> None:
         """Restores magical energy."""
         self.base_stats.restore_stat(self.MP, self.MAX_MP, amount)
     
-    def full_restore(self) -> None:
+    def full_restore(self, amount: int = 1000) -> None:
         """Fully restores magical energy."""
-        self.base_stats.restore_stat(self.MAX_MP, self.FULL_MP, 1000)
-        self.restore(1000)
+        self.base_stats.restore_stat(self.MAX_MP, self.FULL_MP, amount)
+        self.restore(amount)
     
+    def update_display(self) -> None:
+        """Updates health value to be displayed.
+        Sets the health change to 0."""
+        self.display_health += self.health_change
+        self.health_change = 0
+
     def calculate_speed(self) -> None:
         """Calculate the speed of the character."""
         self.combat_speed = self.get_agility() + self.level * self.LEVEL_BONUS + random()

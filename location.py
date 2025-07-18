@@ -1,7 +1,82 @@
 import random
 from collections import deque
 from pool import Pool
-from unit import Unit
+from unit import Presence
+
+
+class KeyObject():
+    """Used to place objects such as houses or oaks
+    with presences attached to them.
+    Can also be used to place manually designed sublocations
+    in the location. Should be given to Locations
+    after initialization but before building."""
+    def __init__(self, length: int, height: int, terrain: int = None, 
+                 x: int = None, y: int = None,
+                 object_x: int = 0, object_y: int = 0,
+                 presence: Presence = None, x_offset: int = 0, y_offset: int = 0,
+                 override_terrain: list[list[int]] = None):
+        """Creates a new key object.
+        The total size of the terrain affected should be provided.
+        The presence should be placed within this area.
+        The x and y parameters indicate the upper left corner of the affected area.
+        If terrain is not of the object type, the entire area will be filled
+        with the given terrain.
+        If the terrain is of the object type, it is placed at object_x, object_y.
+        If override_terrain is provided, it allows more detailed terrain
+        to be placed. In that case, the terrain parameter is ignored.
+
+        Args:
+            terrain: The terrain type to be placed.
+            length: The length of the area.
+            height: The height of the area.
+            x: The starting x coordinate of the area or None for random.
+            y: The starting y coordinate of the area or None for random.
+            object_x: The starting x coordinate of the object terrain.
+            object_y: The starting y coordinate of the object terrain.
+            presence: The presence object to attach to the object.
+            x_offset: The x position of the presence object relative to the starting x coordinate.
+            y_offset: The y position of the presence object relative to the starting y coordinate.
+            override_terrain: A 2D list of terrain types to override the locations terrain.
+        """
+        self.terrain: int = terrain
+        self.length: int = length
+        self.height: int = height
+        self.x: int = x
+        self.y: int = y
+        self.object_x: int = object_x
+        self.object_y: int = object_y
+        self.presence: Presence = presence
+        self.x_offset: int = x_offset
+        self.y_offset: int = y_offset
+        self.override_terrain = override_terrain
+        self.current_x: int = None
+        self.current_y: int = None
+    
+    def get_presence_position(self, start_x: int, start_y: int) -> tuple[int, int]:
+        """Returns the position of the presence object."""
+        return (start_x + self.x_offset, start_y + self.y_offset)
+    
+    def get_object_position(self, start_x: int, start_y: int) -> tuple[int, int]:
+        """Returns the position of the object terrain."""
+        return (start_x + self.object_x, start_y + self.object_y)
+    
+    def set_position(self, x: int, y: int) -> None:
+        """Sets the position of the key object."""
+        self.current_x = x
+        self.current_y = y
+    
+    def check_overlap(self, x: int, y: int, length: int, height: int) -> bool:
+        """Checks if the key object overlaps with the given area."""
+        if self.current_x is None or self.current_y is None:
+            return False
+        
+        if x >= self.current_x + self.length or x + length <= self.current_x:
+            return False
+        elif y >= self.current_y + self.height or y + height <= self.current_y:
+            return False
+        else:
+            return True
+    
 
 class Location():
     """Describes a location in the maze.
@@ -30,10 +105,11 @@ class Location():
     FENCE_H = 3
     FENCE_V = 4
     SPRITE_STATION = 5
-    HOUSE_3x2 = 6
+    TRIGGER_STATION = 6
     ANONYMOUS_BLOCKING = 7
     ANONYMOUS_ENTRANCE = 8
     OAK = 9
+    HOUSE_3x2 = 10
     WATER = 15
     MOUNTAIN = 30
 
@@ -43,7 +119,6 @@ class Location():
                  line_terrain_amount: tuple[int, int] = (-1, 2), corner_terrain_growth: tuple[int, int] = (0, 1),
                  object_terrain_amount: tuple[int, int] = (0, 0),
                  obstacle_coverage: tuple[float, float] = (0.2, 0.4),
-                 characters: list[Unit] = None,
                  safe_zone: bool = False):
         """Creates a new location.
         
@@ -81,11 +156,9 @@ class Location():
         self.object_terrain_allowed = []
         self.corners = []
         self.safe_zone = safe_zone
+        self.presences: list[Presence] = []
+        self.key_objects: list[KeyObject] = []
 
-        if characters:
-            self.characters = characters
-        else:
-            self.characters = []
     
     def build_location(self) -> None:
         """Builds the location for the room"""
@@ -391,13 +464,18 @@ class Location():
             if self.place_object(x, y, terrain_type):
                 objects_placed += 1
     
-    def place_character(self, character: Unit, interior_cells: list[tuple[int, int]]) -> None:
-        """Places a character at a random interior cell"""
+    def place_presence(self, presence: Presence, interior_cells: list[tuple[int, int]]) -> None:
+        """Places a presence object at a random interior cell.
+        This can be an npc, item trigger, or a hidden trigger."""
         while True:
             i = random.randrange(len(interior_cells))
             x, y = interior_cells[i]
-            self.terrain[y][x] = Location.SPRITE_STATION
-            character.set_grid_position(x, y)
+
+            if presence.trigger_on_contact:
+                self.terrain[y][x] = Location.TRIGGER_STATION
+            else:
+                self.terrain[y][x] = Location.SPRITE_STATION
+            presence.set_grid_position(x, y)
             interior_cells.pop(i)
             
             if self.is_terrain_connected():
@@ -405,18 +483,18 @@ class Location():
             else:
                 self.terrain[y][x] = Location.GRASS
 
-    def place_all_characters(self) -> None:
-        """Places characters at random."""
+    def place_all_presences(self) -> None:
+        """Places presences at random."""
         interior_cells = self._get_interior_cells()
 
-        for character in self.characters:
-            self.place_character(character, interior_cells)
+        for presence in self.presences:
+            self.place_presence(presence, interior_cells)
     
-    def get_character_at(self, x: int, y: int) -> Unit:
-        """Returns the character at the given coordinates, or None if there is none."""
-        for character in self.characters:
-            if character.get_grid_position() == (x, y):
-                return character
+    def get_presence_at(self, x: int, y: int) -> Presence:
+        """Returns the presence at the given coordinates, or None if there is none."""
+        for presence in self.presences:
+            if presence.get_grid_position() == (x, y):
+                return presence
         return None
     
     def get_random_position(self) -> tuple[int, int]:
@@ -427,14 +505,14 @@ class Location():
             if self.is_passable(self.terrain[y][x]):
                 return (x, y)
 
-    def get_nearby_character(self, x: int, y: int) -> Unit:
-        """Returns a character within conversation range of the given coordinates,
+    def get_nearby_presence(self, x: int, y: int) -> Presence:
+        """Returns a presence within conversation range of the given coordinates,
         or None if there is none."""
         directions = ((0, -1), (1, 0), (0, 1), (-1, 0))
         for dx, dy in directions:
-            character = self.get_character_at(x + dx, y + dy)
-            if character is not None:
-                return character
+            presence = self.get_presence_at(x + dx, y + dy)
+            if presence is not None:
+                return presence
         return None
 
     def expand_pool(self, pool: Pool,
@@ -1058,7 +1136,7 @@ class Location():
             self.create_edges()
             self.create_objects()
             try:
-                self.place_all_characters()
+                self.place_all_presences()
             except ValueError as e:
                 continue
 
@@ -1097,7 +1175,7 @@ class Location():
             self.terrain = [[self.base_inaccessible_tile for x in range(self.width)] for y in range(self.height)]
             self.create_edges()
             try:
-                self.place_all_characters()
+                self.place_all_presences()
             except ValueError as e:
                 continue
 
@@ -1130,3 +1208,44 @@ class Location():
         obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
         self.create_obstacles(obstacle_coverage)
         self.rotate_all_obstacles()
+
+    def add_key_object(self, key_object: KeyObject) -> None:
+        self.key_objects.append(key_object)
+    
+    def place_key_object(self, key_object: KeyObject, x: int, y: int) -> bool:
+        """Places a key object in the location.
+        Returns True if successful, False otherwise."""
+        if x + key_object.length >= self.width - 1 or y + key_object.height >= self.height - 1:
+            return False
+        
+        for placed_object in self.key_objects:
+            if placed_object.check_overlap(x, y, key_object.length, key_object.height):
+                return False
+        
+        # Go ahead and place the terrain and presence
+
+        key_object.set_position(x, y)
+        return True
+    
+    def place_all_key_objects(self) -> bool:
+        """Places all key objects in the location.
+        Returns True if successful, False otherwise.
+        Depending on key object sizes, placing all of them may be difficult
+        and require multiple attempts.
+        If key objects are too large, placing them will be impossible."""
+        i = 0
+
+        for tries in range(100):
+            key_object = self.key_objects[i]
+            x = random.randrange(1, self.width - 1 - key_object.length)
+            y = random.randrange(1, self.height - 1 - key_object.height)
+
+            if self.place_key_object(key_object, x, y):
+                i += 1
+                if i >= len(self.key_objects):
+                    return True
+        return False
+
+
+
+    

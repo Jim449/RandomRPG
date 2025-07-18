@@ -1,7 +1,7 @@
 from unit import Unit
 from combat_input import CombatInput
-from random import randrange
-from mechanics.storage import Storage
+from random import randrange, random
+from storage import Storage
 
 class Combat:
     """Controls combat flow."""
@@ -178,16 +178,20 @@ class Combat:
             self.phase = self.PHASE_DECIDE_ACTION
             return True
         return True
-
-    def next_phase(self) -> None:
-        """Moves to the next phase."""
-        # After the player has decided his action,
-        # I need to move to the next phase
-        # Other phase transitions happens in process_turn
-        if self.phase == self.PHASE_DECIDE_ACTION:
-            self.phase = self.PHASE_USE_ACTION
     
     def clear_targeting(self) -> None:
         """Clears active unit and targets."""
         self.active_unit = None
         self.current_targets = []
+    
+    def escape_check(self) -> bool:
+        """Checks if the player can escape."""
+        escape = self.combat_input.hero.get_escape_value()
+        block = 0
+
+        for enemy in self.combat_input.enemies:
+            block += enemy.get_escape_value()
+
+        chance = 0.5 + (escape - block) / 50
+        print(f"Attempting to escape with a {chance * 100}% chance")
+        return random() < chance

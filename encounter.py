@@ -1,5 +1,4 @@
 from conversation import Conversation
-from mechanics.storage import Storage
 from typing import Self
 from quest_log import QuestLog
 
@@ -9,7 +8,8 @@ class Encounter:
     def __init__(self, enemies: list[str], level: list[int],
                  encounter_weight: int = 1,
                  conversation: Conversation = None,
-                 reward: int = 0):
+                 reward: int = 0,
+                 allow_escape: bool = True):
         """Creates a new encounter with the given enemies.
         The enemies must be fetched from the storage.
         The encounter_weight determines the chance of the encounter being triggered.
@@ -23,8 +23,9 @@ class Encounter:
         self.encounter_weight = encounter_weight
         self.conversation = conversation
         self.reward = reward
+        self.allow_escape = allow_escape
     
-    def instantiate(self, storage: Storage) -> Self:
+    def instantiate(self, storage) -> Self:
         """Fetches the units from the storage.
         Returns a new encounter with the units."""
         encounter = Encounter(self.names, self.level, self.encounter_weight,
@@ -42,6 +43,10 @@ class Encounter:
     def get_experience(self) -> int:
         """Returns the experience points for the encounter."""
         return sum([unit.get_experience() for unit in self.units])
+    
+    def get_coins(self) -> int:
+        """Returns the coin reward for the encounter."""
+        return self.reward
 
     def finish_encounter(self, quest_log: QuestLog) -> None:
         """Updates the quest log with the encounter's conversation."""

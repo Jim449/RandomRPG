@@ -2,7 +2,7 @@ from blueprint import Blueprint
 from area import Area
 from maze import Maze, IllegalMazeError
 from location import Location
-from unit import Unit
+from unit import Unit, Presence
 from room import Room
 from combat_input import CombatInput
 from adventure_menu import AdventureMenu
@@ -11,7 +11,7 @@ from conversation import Conversation
 from quest_log import QuestLog, Quest
 from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
-from mechanics.storage import Storage
+from storage import Storage
 from mechanics.inventory import Inventory
 from random import randrange
 from animation import TextAscendAnimation, FadeAnimation, TextWriteAnimation, WalkDownAnimation, WalkUpAnimation, BlinkAnimation
@@ -367,14 +367,36 @@ class Game():
         self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
         self.current_location.object_terrain_amount = (4, 4)
 
-        innkeeper = Unit("Isabel", pygame.image.load("resources/people/Commoner_female.png"))
+        # Isabel
+        # She'll have to do without a name variable
+        innkeeper = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
         innkeeper_offer = Conversation(["Good day, traveler. You look weary.", "Let me heal your wounds."])
         innkeeper_offer.add_reward(heal=True, restore=True)
         innkeeper.add_conversation(innkeeper_offer)
 
-        blacksmith = Unit("Henry", pygame.image.load("resources/people/Commoner_male.png"))
-        blacksmith_greeting = Conversation(["Hello there! How can I help you today?"])
-        blacksmith.add_conversation(blacksmith_greeting)
+        # Henry
+        blacksmith = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
+        blacksmith_business = Conversation(["Hello there!",
+                                            "I have a fine sabre for sale.",
+                                            "It's yours for 100 coins."])
+        blacksmith_business.add_quest("The blacksmith", 0)
+        blacksmith_purchase = Conversation(["Much appreciated.\nI'm sure it'll serve you well."])
+        blacksmith_purchase.add_reward(item="Sabre")
+        blacksmith_refusal = Conversation(["Is it too expensive?",
+                                           "I've heard the goblins out in the meadows\ncarry a lot of coins on them."])
+        blacksmith_business.add_accept_conversation(blacksmith_purchase, "Buy item?", cost=100)
+        blacksmith_business.add_reject_conversation(blacksmith_refusal)
+        blacksmith.add_conversation(blacksmith_business)
+
+        blacksmith_further_business = Conversation(["Hello there!",
+                                                    "Would you like to buy this fine chainmail?",
+                                                    "It'll cost 400 coins."])
+        blacksmith_further_business.add_quest("The blacksmith", 1)
+        blacksmith_further_purchase = Conversation(["Thank you.\nI'm quite confident in it."])
+        blacksmith_further_refusal = Conversation(["Don't be like that.\nYou need a good armor."])
+        blacksmith_further_business.add_accept_conversation(blacksmith_further_purchase, "Buy item?", cost=400)
+        blacksmith_further_business.add_reject_conversation(blacksmith_further_refusal)
+        blacksmith.add_conversation(blacksmith_further_business)
 
         blacksmith_quest = Conversation(["Hey there.\nYou're a traveler?",
                                          "Lately, the meadow's been infested with spiders.\nStay safe out there.",
@@ -384,8 +406,28 @@ class Game():
         blacksmith_quest.add_quest("The hunter", 0)
         blacksmith.add_conversation(blacksmith_quest)
 
-        self.current_location.characters.append(innkeeper)
-        self.current_location.characters.append(blacksmith)
+        # Eliza
+        herbalist = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
+        herbalist_offer = Conversation(["Good day.",
+                                           "Are you interested in buying\nsome healing herbs?",
+                                           "It's 10 coins for one handful."])
+        herbalist_purchase = Conversation(["Excellent. Here you go."])
+        herbalist_purchase.add_reward(item="Herb")
+        herbalist_refusal = Conversation(["That's too bad.\nThey're really effective."])
+        herbalist_offer.add_accept_conversation(herbalist_purchase, "Buy item?", cost=10)
+        herbalist_offer.add_reject_conversation(herbalist_refusal)
+        herbalist.add_conversation(herbalist_offer)
+        
+        herbalist_gift = Conversation(["Good day.\nAre you going out into the wilderness?",
+                                       "Here, take this herb.\nIt'll keep you healthy.",
+                                       "If you need another one, come talk with me.\nI'll have to charge you, though."])
+        herbalist_gift.add_reward(item="Herb")
+        herbalist_gift.add_quest("The herbalist", 0)
+        herbalist.add_conversation(herbalist_gift)
+
+        self.current_location.presences.append(innkeeper)
+        self.current_location.presences.append(blacksmith)
+        self.current_location.presences.append(herbalist)
         
         # Hunters cabin. Hands out quests
         hunter_room = self.maze.get_room_of_number(3)
@@ -395,7 +437,8 @@ class Game():
         hunter_room.location.allowed_obstacles.append(Location.HOUSE_3x2)
         hunter_room.location.object_terrain_amount = (1, 1)
 
-        hunter = Unit("Richard", pygame.image.load("resources/people/Commoner_male.png"))
+        # Richard
+        hunter = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
         hunter_greeting = Conversation(["Good day."])
         hunter.add_conversation(hunter_greeting)
 
@@ -421,7 +464,7 @@ class Game():
         hunter_reward.add_reward(item="Quarterstaff", reward=30)
         hunter.add_conversation(hunter_reward)
 
-        hunter_room.location.characters.append(hunter)
+        hunter_room.location.presences.append(hunter)
 
         # Build the locations
         self.maze.build_locations()
@@ -435,6 +478,7 @@ class Game():
                       "Rank": 4, "Constitution": 6}
         self.player.set_stats(CharacterStats(hero_stats))
         self.inventory = Inventory()
+        self.inventory.add_item(self.storage.get_item("Herb"))
         self.quest_log = QuestLog()
         self.adventure_menu = AdventureMenu(self.player, self.inventory)
     
@@ -464,8 +508,21 @@ class Game():
                 # Handle combat input
                 elif self.combat:
                     self.handle_combat_input(event.key)
+                    return
+                elif self.conversation:
+                    self.handle_conversation_input(event.key)
+                    return
                 elif self.adventure_menu.is_active():
                     self.handle_adventure_menu_input(event.key)
+                    return
+                # Handle other key presses when not in combat/conversation/menu
+                elif event.key == pygame.K_l:
+                    npc = self.current_location.get_nearby_presence(self.player.grid_x, self.player.grid_y)
+                    if npc and not self.conversation:
+                        self.conversation = self.quest_log.get_conversation(npc.conversations)
+                        self.start_conversation()
+                elif event.key == pygame.K_RETURN:
+                    self.adventure_menu.set_mode(AdventureMenu.MENU)
         
         # Handle continuous movement (only when not in combat)
         if self.player and not self.player.moving \
@@ -478,14 +535,6 @@ class Game():
             if speed_boost != self.player.speed_boost:
                 self.player.set_speed_boost(speed_boost)
             
-            if keys[pygame.K_l]:
-                npc = self.current_location.get_nearby_character(self.player.grid_x, self.player.grid_y)
-                if npc and not self.conversation:
-                    self.conversation = self.quest_log.get_conversation(npc.conversations)
-            
-            if keys[pygame.K_RETURN]:
-                self.adventure_menu.set_mode(AdventureMenu.MENU)
-
             # Handle movement keys
             if keys[pygame.K_w]:
                 if self.transition_check(self.player.grid_x, self.player.grid_y - 1):
@@ -536,17 +585,26 @@ class Game():
                     self.combat_input.set_mode(CombatInput.TARGETING)
                     print("Attack selected")
                 elif choice == "Defend":
-                    # TODO: Implement defend action
-                    print("Defend selected")
+                    self.combat.select_action(self.storage.get_action("Defend"), self.player)
+                    self.combat_input.set_mode(CombatInput.INACTIVE)
                 elif choice == "Cast spell":
                     self.combat_input.set_mode(CombatInput.SPELL_SELECT)
                 elif choice == "Run":
-                    animation = FadeAnimation(self.fade,
-                                              start_alpha=0,
-                                              end_alpha=255,
-                                              speed=8,
-                                              callback=self.escape_encounter)
-                    self.animation_handler.add_animation(animation)
+                    if not self.encounter.allow_escape:
+                        print("No escape allowed")
+                        # I should print a message to the user
+                        # Allow the player to select another action
+                    if self.combat.escape_check():
+                        animation = FadeAnimation(self.fade,
+                                                start_alpha=0,
+                                                end_alpha=255,
+                                                speed=8,
+                                                callback=self.escape_encounter)
+                        self.animation_handler.add_animation(animation)
+                    else:
+                        print("Failed to escape")
+                        self.combat.select_action(self.storage.get_action("Inaction"), self.player)
+                        self.combat_input.set_mode(CombatInput.INACTIVE)
             elif mode == CombatInput.TARGETING:
                 enemy = self.combat_input.get_enemy()
                 if enemy:
@@ -603,37 +661,79 @@ class Game():
                     self.inventory.equip(self.player, self.adventure_menu.get_selected_item())
                     self.adventure_menu.load_equipment()
                     self.adventure_menu.undo_mode()
+                elif item_choice == "Use":
+                    index = self.adventure_menu.get_item_index()
+                    message = self.inventory.use_item(index, self.player)
+                    if message:
+                        # Go back two steps and reopen inventory
+                        # in order to update the item display
+                        self.adventure_menu.undo_mode()
+                        self.adventure_menu.undo_mode()
+                        self.adventure_menu.open_inventory()
+                        self.player.update_display()
                 elif item_choice == "Cancel":
                     self.adventure_menu.undo_mode()
 
-    def process_conversation(self):
-        """Process conversation logic"""
-        if self.animation_handler.has_animations():
+    def handle_conversation_input(self, key):
+        """Handle keyboard input during conversation"""
+        if self.conversation.awaiting_confirmation():
+            if key in (pygame.K_w, pygame.K_s):
+                self.conversation.increase_confirmation_y()
+            elif (key == pygame.K_l and self.conversation.get_confirmation_y() == 0):
+                if self.inventory.coins >= self.conversation.cost:
+                    self.inventory.remove_coins(self.conversation.cost)
+                    self.end_conversation()
+                else:
+                    # Run the reject conversation since there are no "can't afford it"-conversations yet
+                    self.conversation.reset()
+                    self.conversation = self.conversation.reject_conversation
+                    self.start_conversation()
+            elif (key == pygame.K_l and self.conversation.get_confirmation_y() == 1) \
+                or key == pygame.K_p:
+                self.conversation.reset()
+                self.conversation = self.conversation.reject_conversation
+                self.start_conversation()
             return
         
+        elif key in (pygame.K_l, pygame.K_p):
+            if self.animation_handler.has_animations():
+                self.animation_handler.end_all()
+                return
+            
+            message = self.conversation.get_message()
+            
+            if message:
+                animation = TextWriteAnimation(self.user_interface, message, self.font,
+                                               speed=self.TEXT_SPEED)
+                self.animation_handler.add_animation(animation)
+            else:
+                self.end_conversation()
+    
+    def start_conversation(self):
+        """Gets the first conversation message and starts writing animation"""
         message = self.conversation.get_message()
+        animation = TextWriteAnimation(self.user_interface, message, self.font,
+                                       speed=self.TEXT_SPEED)
+        self.animation_handler.add_animation(animation)
 
-        if message:
-            animation = TextWriteAnimation(self.user_interface, message, self.font,
-                                           speed=self.TEXT_SPEED)
-            self.animation_handler.add_animation(animation)
-        elif self.conversation.confirmation:
-            # Need to add yes and no options
-            # The combat_input can handle it but do I want to use it?
-            # Pass for now, I don't need it yet
-            pass
+    def end_conversation(self):
+        """Ends the conversation and handles rewards"""
+        if self.conversation.heal:
+            self.player.full_heal()
+        if self.conversation.restore:
+            self.player.full_restore()
+        if self.conversation.item:
+            self.inventory.add_item(self.storage.get_item(self.conversation.item),
+                                    equip_to=self.player)
+        if self.conversation.reward:
+            self.inventory.add_coins(self.conversation.reward)
+        self.quest_log.finish_conversation(self.conversation)
+        self.conversation.reset()
+
+        if self.conversation.accept_conversation:
+            self.conversation = self.conversation.accept_conversation
+            self.start_conversation()
         else:
-            if self.conversation.heal:
-                self.player.full_heal()
-            if self.conversation.restore:
-                self.player.full_restore()
-            if self.conversation.item:
-                self.inventory.add_item(self.storage.get_item(self.conversation.item),
-                                        equip_to=self.player)
-            if self.conversation.reward:
-                self.inventory.add_coins(self.conversation.reward)
-            self.quest_log.finish_conversation(self.conversation)
-            self.conversation.reset()
             self.conversation = None
 
     def process_combat(self):
@@ -776,8 +876,9 @@ class Game():
                 terrain = self.current_location.terrain[y][x]
                 
                 if terrain == Location.SPRITE_STATION:
-                    unit = self.current_location.get_character_at(x, y)
-                    self.screen.blit(unit.sprite, unit.get_position())
+                    presence = self.current_location.get_presence_at(x, y)
+                    if presence.sprite:
+                        self.screen.blit(presence.sprite, presence.get_position())
                 elif terrain in (Location.ANONYMOUS_BLOCKING, Location.ANONYMOUS_ENTRANCE):
                     pass
                 elif terrain != self.current_location.base_tile:
@@ -793,7 +894,12 @@ class Game():
 
         if self.conversation:
             self.user_interface.draw_main_panel()
-            self.user_interface.draw_message_panel()
+            
+            if self.conversation.awaiting_confirmation():
+                self.user_interface.draw_message_panel(self.user_interface.message_panel)
+                self.user_interface.draw_confirmation_panel(self.conversation.prompt, self.conversation.confirmation_y)
+            else:
+                self.user_interface.draw_message_panel(self.user_interface.full_message_panel)
         elif self.adventure_menu.is_active():
             self.user_interface.draw_main_panel()
             self.user_interface.draw_overview(self.player, self.current_area.name)
@@ -832,6 +938,7 @@ class Game():
         # Not the best place for this
         # but it'll do for now
         self.player.gain_experience(self.encounter.get_experience())
+        self.inventory.add_coins(self.encounter.get_coins())
         self.combat = None
     
     def escape_encounter(self):
@@ -861,7 +968,6 @@ class Game():
                 self.draw_combat()
                 self.animation_handler.update()
             elif self.conversation:
-                self.process_conversation()
                 self.animation_handler.update()
                 self.draw_location()
             else:

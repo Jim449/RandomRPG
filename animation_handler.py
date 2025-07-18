@@ -89,6 +89,12 @@ class AnimationHandler:
         """
         return len(self.animations) > 0
     
+    def end_all(self):
+        """End all animations."""
+        for animation in self.animations:
+            animation.end()
+        self.clear_all()
+
     def clear_all(self):
         """Remove all animations."""
         self.animations.clear()
@@ -111,3 +117,5 @@ class AnimationHandler:
     def get_animations(self):
         """Get a copy of the current animations list."""
         return self.animations.copy()
+    
+    

@@ -175,22 +175,14 @@ class UserInterface():
         self.screen.blit(magic_text, (100, 10))
         self.screen.blit(area_text, (480 - 10 - area_text.get_width(), 10))
 
-        # self.draw_outline(f"HP {player.get_final_stat("Health")} / {player.get_final_stat("MaxHealth")}",
-        #                   10, 10, self.overview_font, self.overview_color, self.outline_color)
-        # self.draw_outline(f"MP {player.get_final_stat("Magic")} / {player.get_final_stat("MaxMagic")}",
-        #                   100, 10, self.overview_font, self.overview_color, self.outline_color)
-        # self.draw_outline(area_name, 10, 10,
-        #                   self.overview_font, self.overview_color, self.outline_color,
-        #                   negative_x=True)
-
     def get_damage_coordinates(self) -> tuple[int, int]:
         return (self.health_x + 20, self.health_y - 10)
     
     def get_drain_coordinates(self) -> tuple[int, int]:
         return (self.magic_x + 20, self.health_y - 10)
     
-    def draw_message_panel(self):
-        self.screen.blit(self.full_message_panel, (0, self.panel_y))
+    def draw_message_panel(self, panel: pygame.Surface):
+        self.screen.blit(panel, (0, self.panel_y))
 
         for row, message in enumerate(self.messages):
             text_surface = self.message_font.render(message, True, self.menu_color)

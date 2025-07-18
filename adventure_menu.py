@@ -94,6 +94,10 @@ class AdventureMenu:
         """Returns the selected item."""
         return self.items[self.submenu_y][self.submenu_x]
     
+    def get_item_index(self) -> int:
+        """Returns the index of the selected item."""
+        return self.submenu_y * 3 + self.submenu_x
+    
     def get_item_choice(self) -> str:
         """Returns the action to take with the item."""
         return self.item_options[self.details_y]

@@ -72,7 +72,7 @@ def increase_stat(character, power, arguments) -> str:
     for stat_name, modifier in arguments.items():
         character.add_temp_modifier(stat_name, modifier * power)
         if stat_name == "Speed":
-            character.reorder = True
+            character.calculate_speed()
         if power > 0:
             message += f"{character.name} gains {modifier * power} {stat_name}.\n"
     return message
@@ -83,7 +83,7 @@ def decrease_stat(character, power, arguments) -> str:
     for stat_name, modifier in arguments.items():
         character.add_temp_modifier(stat_name, modifier * -power)
         if stat_name == "Speed":
-            character.reorder = True
+            character.calculate_speed()
         if power > 0:
             message += f"{character.name} loses {modifier * power} {stat_name}.\n"
     return message
