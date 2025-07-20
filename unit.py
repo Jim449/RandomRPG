@@ -24,6 +24,7 @@ class Presence:
         self.alpha: int = 255
         self.flashing: bool = False
         self.conversations: list[Conversation] = []
+        self.placed: bool = False
     
     def set_position(self, x: int, y: int) -> None:
         """Sets the player's position."""
@@ -38,6 +39,7 @@ class Presence:
         if y is not None:
             self.grid_y = y
             self.y = y * 32
+        self.placed = True
 
     def get_position(self) -> tuple[int, int]:
         """Returns the player's position."""
@@ -46,6 +48,18 @@ class Presence:
     def get_grid_position(self) -> tuple[int, int]:
         """Returns the player's grid position."""
         return (self.grid_x, self.grid_y)
+    
+    def is_placed(self) -> bool:
+        """Returns True if the unit is placed on the map."""
+        return self.placed
+    
+    def undo_placement(self) -> None:
+        """Undoes the placement of the unit."""
+        self.placed = False
+        self.grid_x = -1
+        self.grid_y = -1
+        self.x = -1
+        self.y = -1
 
     def set_alpha(self, alpha: int) -> None:
         """Sets the unit's alpha."""
@@ -61,6 +75,10 @@ class Presence:
             return self.blink_sprite
         else:
             return self.sprite
+    
+    def is_visible(self) -> bool:
+        """Returns True if the unit is visible."""
+        return self.sprite is not None and self.alpha > 0
     
     def add_conversation(self, conversation: Conversation) -> None:
         """Adds a conversation to the unit."""

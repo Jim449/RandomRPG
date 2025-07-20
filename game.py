@@ -1,7 +1,7 @@
 from blueprint import Blueprint
 from area import Area
 from maze import Maze, IllegalMazeError
-from location import Location
+from location import Location, KeyObject
 from unit import Unit, Presence
 from room import Room
 from combat_input import CombatInput
@@ -363,9 +363,9 @@ class Game():
         self.current_room.location.safe_zone = True
         self.current_location.line_terrain_amount = (3, 3)
         self.current_location.pool_terrain_amount = (0, 0)
-        self.current_location.allowed_obstacles.remove(Location.OAK)
-        self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
-        self.current_location.object_terrain_amount = (4, 4)
+        # self.current_location.allowed_obstacles.remove(Location.OAK)
+        # self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
+        # self.current_location.object_terrain_amount = (4, 4)
 
         # Isabel
         # She'll have to do without a name variable
@@ -373,6 +373,12 @@ class Game():
         innkeeper_offer = Conversation(["Good day, traveler. You look weary.", "Let me heal your wounds."])
         innkeeper_offer.add_reward(heal=True, restore=True)
         innkeeper.add_conversation(innkeeper_offer)
+
+        inn = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
+                        presence=innkeeper, presence_x=1, presence_y=2,
+                        entrance_type=Location.IMPORTANT_BLOCKING,
+                        entrance_x=1, entrance_y=2)
+        self.current_location.add_key_object(inn)
 
         # Henry
         blacksmith = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
@@ -406,6 +412,12 @@ class Game():
         blacksmith_quest.add_quest("The hunter", 0)
         blacksmith.add_conversation(blacksmith_quest)
 
+        smithy = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
+                           presence=blacksmith, presence_x=1, presence_y=2,
+                           entrance_type=Location.IMPORTANT_BLOCKING,
+                           entrance_x=1, entrance_y=2)
+        self.current_location.add_key_object(smithy)
+
         # Eliza
         herbalist = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
         herbalist_offer = Conversation(["Good day.",
@@ -425,17 +437,23 @@ class Game():
         herbalist_gift.add_quest("The herbalist", 0)
         herbalist.add_conversation(herbalist_gift)
 
-        self.current_location.presences.append(innkeeper)
-        self.current_location.presences.append(blacksmith)
-        self.current_location.presences.append(herbalist)
+        apothecary = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
+                               presence=herbalist, presence_x=1, presence_y=2,
+                               entrance_type=Location.IMPORTANT_BLOCKING,
+                               entrance_x=1, entrance_y=2)
+        self.current_location.add_key_object(apothecary)
+
+        # self.current_location.presences.append(innkeeper)
+        # self.current_location.presences.append(blacksmith)
+        # self.current_location.presences.append(herbalist)
         
         # Hunters cabin. Hands out quests
         hunter_room = self.maze.get_room_of_number(3)
-        hunter_room.location.line_terrain_amount = (2, 2)
+        hunter_room.location.line_terrain_amount = (0, 0)
         hunter_room.location.pool_terrain_amount = (1, 1)
-        hunter_room.location.allowed_obstacles.remove(Location.OAK)
-        hunter_room.location.allowed_obstacles.append(Location.HOUSE_3x2)
-        hunter_room.location.object_terrain_amount = (1, 1)
+        # hunter_room.location.allowed_obstacles.remove(Location.OAK)
+        # hunter_room.location.allowed_obstacles.append(Location.HOUSE_3x2)
+        # hunter_room.location.object_terrain_amount = (1, 1)
 
         # Richard
         hunter = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
@@ -465,6 +483,55 @@ class Game():
         hunter.add_conversation(hunter_reward)
 
         hunter_room.location.presences.append(hunter)
+
+        # A small house surrounded by fences
+        hunter_cabin_terrain = [
+            [4, 11, 9, 9, 4],
+            [4, 9, 9, 9, 4],
+            [4, 0, 5, 0, 4],
+            [4, 0, 0, 0, 4],
+            [3, 3, -1, 3, 3],
+        ]
+
+        hunter_cabin = KeyObject(length=5, height=5,
+                                 presence=hunter, presence_x=2, presence_y=2,
+                                 override_terrain=hunter_cabin_terrain)
+        hunter_room.location.add_key_object(hunter_cabin)
+
+        # A great oak tree in the middle of a field
+        # The player can pick up a hidden item
+        great_oak_room = self.maze.get_room_of_number(4)
+        great_oak_room.location.line_terrain_amount = (0, 0)
+        great_oak_room.location.pool_terrain_amount = (0, 0)
+        great_oak_room.location.object_terrain_amount = (0, 0)
+
+        buried_tool = Presence(trigger_on_contact=True)
+        tool_discovery = Conversation(["The ground beneath the oak tree\nseems to be disturbed.",
+                                       "You dig and find a small blade.",
+                                       "Found the Crescent knife."])
+        tool_discovery.add_reward(item="Crescent knife")
+        tool_discovery.add_quest("The druids knife", 0)
+        buried_tool.add_conversation(tool_discovery)
+
+        oak_terrain = [
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+            [-1, -1, -1, 10, 9, -1, -1, -1],
+            [-1, -1, -1, 9, 9, -1, -1, -1],
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+            [-1, -1, -1, -1, -1, -1, -1, -1],
+        ]
+
+        the_oak = KeyObject(length=8, height=8,
+                            presence=buried_tool, presence_x=4, presence_y=4,
+                            override_terrain=oak_terrain)
+        great_oak_room.location.add_key_object(the_oak)
+
+        # Hope this works
+        # There's quite a bit of code
+        # I should load from json instead
 
         # Build the locations
         self.maze.build_locations()
@@ -520,7 +587,8 @@ class Game():
                     npc = self.current_location.get_nearby_presence(self.player.grid_x, self.player.grid_y)
                     if npc and not self.conversation:
                         self.conversation = self.quest_log.get_conversation(npc.conversations)
-                        self.start_conversation()
+                        if self.conversation:
+                            self.start_conversation()
                 elif event.key == pygame.K_RETURN:
                     self.adventure_menu.set_mode(AdventureMenu.MENU)
         
@@ -860,37 +928,40 @@ class Game():
         elif self.combat_input.get_mode() == CombatInput.MASS_TARGETING:
             self.user_interface.draw_mass_pointers(self.combat_input)
 
+    def draw_sprites(self, y: int):
+        for presence in self.current_location.presences:
+            if presence.is_visible() and presence.grid_y == y:
+                self.screen.blit(presence.sprite, presence.get_position())
+                presence.sprite.set_alpha(presence.get_alpha())
+
     def draw_location(self):
         """Draws the current location terrain on screen"""
         if not self.current_location:
             return
         
         base_tile = self.TERRAIN[self.current_location.base_tile]
+        invisible_tiles = (Location.ANONYMOUS_BLOCKING, Location.IMPORTANT_PASSABLE,
+                           Location.UNREACHABLE_PASSABLE, Location.REGULAR_PASSABLE,
+                           Location.IMPORTANT_BLOCKING)
 
         for y in range(self.GRID_SIZE):
             for x in range(self.GRID_SIZE):
                 self.screen.blit(base_tile, (x * self.CELL_SIZE, y * self.CELL_SIZE))
         
         for y in range(self.GRID_SIZE):
-            for x in range(self.GRID_SIZE):
-                terrain = self.current_location.terrain[y][x]
-                
-                if terrain == Location.SPRITE_STATION:
-                    presence = self.current_location.get_presence_at(x, y)
-                    if presence.sprite:
-                        self.screen.blit(presence.sprite, presence.get_position())
-                elif terrain in (Location.ANONYMOUS_BLOCKING, Location.ANONYMOUS_ENTRANCE):
-                    pass
-                elif terrain != self.current_location.base_tile:
-                    # I need to add passable terrain first, not here
-                    # Otherwise I get a "dig-into-the-ground"-bug
-                    self.screen.blit(self.TERRAIN[terrain], (x * self.CELL_SIZE, y * self.CELL_SIZE))
-            
+            self.draw_sprites(y)
+
             if self.player and self.player.grid_y == y:
                 self.screen.blit(self.player.sprite, self.player.get_position())
                 self.player.sprite.set_alpha(self.player.get_alpha())
-        
-        # self.user_interface.draw_overview(self.player, self.current_area.name)
+
+            for x in range(self.GRID_SIZE):
+                terrain = self.current_location.terrain[y][x]
+                
+                if terrain in invisible_tiles or terrain == self.current_location.base_tile:
+                    pass
+                else:
+                    self.screen.blit(self.TERRAIN[terrain], (x * self.CELL_SIZE, y * self.CELL_SIZE))
 
         if self.conversation:
             self.user_interface.draw_main_panel()

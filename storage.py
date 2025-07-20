@@ -93,7 +93,7 @@ class Storage:
                              strength=1)
         self.items[new_item.name] = new_item
 
-        new_item = item.Item("Crescent cutter",
+        new_item = item.Item("Crescent knife",
                              "A moon-shaped knife, used by druids to harvest healing herbs.",
                              type=item.Item.WEAPON,
                              stamina=1)

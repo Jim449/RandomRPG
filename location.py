@@ -13,17 +13,27 @@ class KeyObject():
     def __init__(self, length: int, height: int, terrain: int = None, 
                  x: int = None, y: int = None,
                  object_x: int = 0, object_y: int = 0,
-                 presence: Presence = None, x_offset: int = 0, y_offset: int = 0,
+                 presence: Presence = None,
+                 presence_x: int = 0, presence_y: int = 0,
+                 entrance_type: int = None,
+                 entrance_x: int = None, entrance_y: int = None,
                  override_terrain: list[list[int]] = None):
         """Creates a new key object.
         The total size of the terrain affected should be provided.
         The presence should be placed within this area.
         The x and y parameters indicate the upper left corner of the affected area.
-        If terrain is not of the object type, the entire area will be filled
-        with the given terrain.
+        If terrain is not of the object type, the entire area will be filled with the given terrain.
         If the terrain is of the object type, it is placed at object_x, object_y.
         If override_terrain is provided, it allows more detailed terrain
         to be placed. In that case, the terrain parameter is ignored.
+
+        The entrance can be used to control the terrain around the presence.
+        If the presence represents a door, the entrance would be IMPORTANT_PASSABLE
+        and would be placed right next to the presence.
+        This would tell the algorithm that it mustn't block the path to the presence.
+        If the presence has a sprite, the entrance would be ANONYMOUS_BLOCKING
+        and would be placed at the same position as the presence.
+        This would block passability but keep the presence reachable.
 
         Args:
             terrain: The terrain type to be placed.
@@ -34,8 +44,11 @@ class KeyObject():
             object_x: The starting x coordinate of the object terrain.
             object_y: The starting y coordinate of the object terrain.
             presence: The presence object to attach to the object.
-            x_offset: The x position of the presence object relative to the starting x coordinate.
-            y_offset: The y position of the presence object relative to the starting y coordinate.
+            presence_x: The x position of the presence object relative to the starting x coordinate.
+            presence_y: The y position of the presence object relative to the starting y coordinate.
+            entrance_type: A terrain to place at, or nearby, the presence.
+            entrance_x: The x position of the entrance relative to the starting x coordinate.
+            entrance_y: The y position of the entrance relative to the starting y coordinate.
             override_terrain: A 2D list of terrain types to override the locations terrain.
         """
         self.terrain: int = terrain
@@ -46,24 +59,34 @@ class KeyObject():
         self.object_x: int = object_x
         self.object_y: int = object_y
         self.presence: Presence = presence
-        self.x_offset: int = x_offset
-        self.y_offset: int = y_offset
+        self.presence_x: int = presence_x
+        self.presence_y: int = presence_y
+        self.entrance_type: int = entrance_type
+        self.entrance_x: int = entrance_x
+        self.entrance_y: int = entrance_y
         self.override_terrain = override_terrain
         self.current_x: int = None
         self.current_y: int = None
     
     def get_presence_position(self, start_x: int, start_y: int) -> tuple[int, int]:
         """Returns the position of the presence object."""
-        return (start_x + self.x_offset, start_y + self.y_offset)
+        return (start_x + self.presence_x, start_y + self.presence_y)
     
     def get_object_position(self, start_x: int, start_y: int) -> tuple[int, int]:
         """Returns the position of the object terrain."""
         return (start_x + self.object_x, start_y + self.object_y)
     
+    def get_entrance_position(self, start_x: int, start_y: int) -> tuple[int, int]:
+        """Returns the position of the entrance."""
+        return (start_x + self.entrance_x, start_y + self.entrance_y)
+    
     def set_position(self, x: int, y: int) -> None:
         """Sets the position of the key object."""
         self.current_x = x
         self.current_y = y
+
+        if self.presence is not None:
+            self.presence.set_grid_position(x + self.presence_x, y + self.presence_y)
     
     def check_overlap(self, x: int, y: int, length: int, height: int) -> bool:
         """Checks if the key object overlaps with the given area."""
@@ -90,26 +113,26 @@ class Location():
     EXPAND_LINE = 1 # Expands in a line.
     EXPAND_BRIDGE = 2 # Various rules apply.
     SINGLE_TILE = 3 # Single tile obstacle.
-    REGULAR_PASSABLE = 4 # Passable terrain.
-    IMPORTANT_PASSABLE = 5 # Passable terrain that cannot be modified.
-    IMPORTANT_BLOCKING = 6 # Blocking terrain that must be reachable.
-    OBJECT = 7 # Object terrain.
+    OBJECT = 4 # Object terrain.
+    IMPORTANT_BLOCKING = 5 # Blocking terrain that must be reachable.
+     
     # Terrain types
     BRIDGE_H = -45
     BRIDGE_V = -30
-    BRIDGE = -2
-    # ROAD = -1
+    # Terrain / expansion types
+    UNREACHABLE_PASSABLE = -3 # Passable, immutable terrain that doesn't have to be reachable
+    REGULAR_PASSABLE = -2 # Passable terrain.
+    IMPORTANT_PASSABLE = -1 # Passable terrain that cannot be modified.
+    # More terrain types
     GRASS = 0
     FOREST = 1
     FENCE = 2
     FENCE_H = 3
     FENCE_V = 4
-    SPRITE_STATION = 5
-    TRIGGER_STATION = 6
-    ANONYMOUS_BLOCKING = 7
-    ANONYMOUS_ENTRANCE = 8
-    OAK = 9
-    HOUSE_3x2 = 10
+    # 5 - IMPORTANT_BLOCKING
+    ANONYMOUS_BLOCKING = 9
+    OAK = 10
+    HOUSE_3x2 = 11
     WATER = 15
     MOUNTAIN = 30
 
@@ -229,8 +252,12 @@ class Location():
             return Location.EXPAND_LINE
         elif terrain == Location.GRASS:
             return Location.REGULAR_PASSABLE
-        elif terrain in (Location.SPRITE_STATION, Location.ANONYMOUS_ENTRANCE):
+        elif terrain == Location.IMPORTANT_PASSABLE:
+            return Location.IMPORTANT_PASSABLE
+        elif terrain == Location.IMPORTANT_BLOCKING:
             return Location.IMPORTANT_BLOCKING
+        elif terrain == Location.UNREACHABLE_PASSABLE:
+            return Location.UNREACHABLE_PASSABLE
         elif terrain in (Location.HOUSE_3x2, Location.OAK, Location.ANONYMOUS_BLOCKING):
             return Location.OBJECT
         else:
@@ -331,7 +358,9 @@ class Location():
 
         for y in range(self.height):
             for x in range(self.width):
-                if self.is_passable(self.terrain[y][x]):
+                if self.terrain[y][x] == Location.UNREACHABLE_PASSABLE:
+                    continue
+                elif self.is_passable(self.terrain[y][x]):
                     passable_cells.append((x, y))
                 elif self.get_terrain_expansion_type(self.terrain[y][x]) == Location.IMPORTANT_BLOCKING:
                     important_cells.append((x, y))
@@ -394,7 +423,7 @@ class Location():
             if self.is_terrain_connected():
                 obstacles_placed += 1
             else:
-                self.terrain[y][x] = Location.GRASS
+                self.terrain[y][x] = self.base_tile
     
     def _place_terrain_in_box(self, x: int, y: int, length: int, height: int, terrain_type: int) -> bool:
         """Places a fixed-size terrain in a box"""
@@ -413,35 +442,32 @@ class Location():
 
         return True
 
-    def place_object(self, x: int, y: int, terrain_type: int) -> bool:
+    def place_object(self, x: int, y: int, terrain_type: int,
+                     check_passability: bool = True) -> bool:
         """Places a fixed-size object at the given coordinates"""
         length = 0
         height = 0
-        entrance_x = None
-        entrance_y = None
-        
-        if terrain_type == Location.HOUSE_3x2:
-            length = 3
-            height = 2
-            entrance_x = x + 1
-            entrance_y = y + 1
-        elif terrain_type == Location.OAK:
-            length = 2
-            height = 2
+        dimensions = {
+            Location.HOUSE_3x2: (3, 2),
+            Location.OAK: (2, 2)
+        }
+
+        if terrain_type in dimensions:
+            length, height = dimensions[terrain_type]
+        else:
+            return False
 
         if not self._place_terrain_in_box(x, y, length, height, Location.ANONYMOUS_BLOCKING):
             return False
         
         self.terrain[y][x] = terrain_type
         
-        # Ensures the entrance is reachable
-        if entrance_y is not None:
-            self.terrain[entrance_y][entrance_x] = Location.ANONYMOUS_ENTRANCE
-
-        if self.is_terrain_connected():
+        if not check_passability:
+            return True
+        elif self.is_terrain_connected():
             return True
         else:
-            self._place_terrain_in_box(x, y, length, height, Location.GRASS)
+            self._place_terrain_in_box(x, y, length, height, self.base_tile)
             return False
     
     def create_objects(self) -> None:
@@ -461,7 +487,7 @@ class Location():
 
             terrain_type = random.choice(self.object_terrain_allowed)
 
-            if self.place_object(x, y, terrain_type):
+            if self.place_object(x, y, terrain_type, check_passability=True):
                 objects_placed += 1
     
     def place_presence(self, presence: Presence, interior_cells: list[tuple[int, int]]) -> None:
@@ -472,9 +498,9 @@ class Location():
             x, y = interior_cells[i]
 
             if presence.trigger_on_contact:
-                self.terrain[y][x] = Location.TRIGGER_STATION
+                self.terrain[y][x] = Location.IMPORTANT_PASSABLE
             else:
-                self.terrain[y][x] = Location.SPRITE_STATION
+                self.terrain[y][x] = Location.IMPORTANT_BLOCKING
             presence.set_grid_position(x, y)
             interior_cells.pop(i)
             
@@ -488,7 +514,13 @@ class Location():
         interior_cells = self._get_interior_cells()
 
         for presence in self.presences:
-            self.place_presence(presence, interior_cells)
+            if not presence.is_placed():
+                self.place_presence(presence, interior_cells)
+    
+    def reset_all_presences(self) -> None:
+        """Prepares all presences for placement."""
+        for presence in self.presences:
+            presence.undo_placement()
     
     def get_presence_at(self, x: int, y: int) -> Presence:
         """Returns the presence at the given coordinates, or None if there is none."""
@@ -1126,14 +1158,17 @@ class Location():
                                 check_passability=False)[0]:
                 return
 
-
     def create_regular_location(self) -> None:
         """Modifies the location, using passable terrain as a base.
         Places obstacles of different types."""
         while True:
             self.terrain = [[self.base_tile for x in range(self.width)] for y in range(self.height)]
-            # Create and expand corner obstacles
             self.create_edges()
+            self.reset_all_presences()
+            
+            if not self.place_all_key_objects():
+                continue
+
             self.create_objects()
             try:
                 self.place_all_presences()
@@ -1165,8 +1200,6 @@ class Location():
             
             self.rotate_all_obstacles()
             return
-            
-
 
     def create_lake_location(self) -> None:
         """Modifies the location, using inaccessible terrain as a base.
@@ -1211,7 +1244,22 @@ class Location():
 
     def add_key_object(self, key_object: KeyObject) -> None:
         self.key_objects.append(key_object)
+        self.presences.append(key_object.presence)
     
+    def place_key_object_presence(self, key_object: KeyObject, start_x: int, start_y: int) -> None:
+        """Places the presence of a key object onto the location.
+        Places entrance terrain."""
+        if key_object.presence is not None:
+            key_object.presence.set_grid_position(start_x + key_object.presence_x, start_y + key_object.presence_y)
+        if key_object.entrance_type is not None:
+            self.terrain[start_y + key_object.entrance_y][start_x + key_object.entrance_x] = key_object.entrance_type
+
+    def paste_terrain(self, key_object: KeyObject, start_x: int, start_y: int) -> None:
+        """Pastes the terrain of a key object onto the location."""
+        for x in range(key_object.length):
+            for y in range(key_object.height):
+                self.terrain[start_y + y][start_x + x] = key_object.override_terrain[y][x]
+
     def place_key_object(self, key_object: KeyObject, x: int, y: int) -> bool:
         """Places a key object in the location.
         Returns True if successful, False otherwise."""
@@ -1222,9 +1270,17 @@ class Location():
             if placed_object.check_overlap(x, y, key_object.length, key_object.height):
                 return False
         
-        # Go ahead and place the terrain and presence
+        if key_object.override_terrain is not None:
+            self.paste_terrain(key_object, x, y)
+        else:
+            self.place_object(x, y, key_object.terrain, check_passability=False)
 
         key_object.set_position(x, y)
+        self.place_key_object_presence(key_object, x, y)
+
+        if not self.is_terrain_connected():
+            self._place_terrain_in_box(x, y, key_object.length, key_object.height, self.base_tile)
+            return False
         return True
     
     def place_all_key_objects(self) -> bool:
@@ -1233,6 +1289,8 @@ class Location():
         Depending on key object sizes, placing all of them may be difficult
         and require multiple attempts.
         If key objects are too large, placing them will be impossible."""
+        if len(self.key_objects) == 0:
+            return True
         i = 0
 
         for tries in range(100):
