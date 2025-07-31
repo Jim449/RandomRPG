@@ -1,0 +1,5 @@
+[{
+    "message": ["Good day, traveler. You look weary.", "Let me heal your wounds."],
+    "heal": true,
+    "restore": true
+}]

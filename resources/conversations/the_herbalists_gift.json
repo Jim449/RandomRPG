@@ -1,0 +1,11 @@
+[
+    {
+        "message": ["Good day.\nAre you going out into the wilderness?",
+        "Here, take this herb.\nIt'll keep you healthy.",
+        "If you need another one, come talk with me.\nI'll have to charge you, though."],
+        "quest_name": "The herbalist",
+        "quest_step": 0,
+        "progress_quest": true,
+        "item": "Herb"
+    }
+]

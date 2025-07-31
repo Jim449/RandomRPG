@@ -193,5 +193,5 @@ class Combat:
             block += enemy.get_escape_value()
 
         chance = 0.5 + (escape - block) / 50
-        print(f"Attempting to escape with a {chance * 100}% chance")
-        return random() < chance
+        print(f"Attempting to escape with a {chance * 100:.0f}% chance. Escape roll: {self.combat_input.hero.escape_roll:.2f}")
+        return self.combat_input.hero.escape_roll < chance

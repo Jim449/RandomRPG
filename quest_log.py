@@ -2,7 +2,7 @@ from conversation import Conversation
 
 
 class Quest():
-    def __init__(self, name: str, step: int = 1):
+    def __init__(self, name: str, step: int = 0):
         """Initializes a quest."""
         self.name = name
         self.step = step
@@ -10,6 +10,9 @@ class Quest():
     def progress(self) -> None:
         """Increments the quest step."""
         self.step += 1
+    
+    def __str__(self) -> str:
+        return f"Quest {self.name} at step {self.step}"
 
 
 class QuestLog():
@@ -64,12 +67,11 @@ class QuestLog():
         result = None
 
         for conversation in conversations:
-            if conversation.quest_name is None:
-                if result is None:
-                    result = conversation
-            else:
+            if conversation.quest_name is None and result is None:
+                result = conversation
+            elif conversation.quest_name is not None:
                 quest = self.get_quest(conversation.quest_name, conversation.quest_step)
-                
+
                 if not quest:
                     continue
                 if not conversation.confirmation:
@@ -80,7 +82,7 @@ class QuestLog():
 
     def finish_conversation(self, conversation: Conversation) -> None:
         """Finishes a conversation and updates the quest log accordingly."""
-        if conversation.progress_quest:
+        if conversation.progress_quest and conversation.quest_name is not None:
             quest = self.get_quest(conversation.quest_name, conversation.quest_step)
             if quest:
                 quest.progress()

@@ -1,0 +1,16 @@
+[
+    {
+        "message": ["Good day.",
+        "Are you interested in buying\nsome healing herbs?",
+        "It's 10 coins for one handful."],
+        "cost": 10,
+        "prompt": "Buy item?",
+        "accept": {
+            "message": ["Excellent. Here you go."],
+            "item": "Herb"
+        },
+        "reject": {
+            "message": ["That's too bad.\nThey're really effective."]
+        }
+    }
+]

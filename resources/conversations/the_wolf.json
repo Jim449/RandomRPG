@@ -1,0 +1,31 @@
+[
+    {
+        "message": ["Lately, a vicious wolf\nhas been attacking the farmers.",
+                    "If you can slay it,\nI'll give you a reward.",
+                    "I don't know where it is.\nIf you wander around long enough,\nit'll find you."],
+        "quest_name": "The wolf",
+        "quest_step": 1,
+        "progress_quest": true
+    },
+    {
+        "message": ["So you slayed that damned wolf.",
+        "Here, take this quarterstaff.\nIt's great for blocking enemy blows.",
+        "I'll give you some coins as well."],
+        "quest_name": "The wolf",
+        "quest_step": 3,
+        "progress_quest": true,
+        "item": "Quarterstaff",
+        "reward": 30
+    },
+    {
+        "message": ["You're claiming Arvanis the mage\nburned down Elgangs cathedral?",
+"She even stole the sword of light?",
+"I don't know why'd she do that.\nThe mages of Thalmot\nhave always remained neutral.",
+"No, I don't know the path to Thalmot.\nI may know some spells\nbut I'm not one of them.",
+"If you want clues, try visiting\nthe graveyard in the hills.",
+"Apparently, some kind of incident\noccurred long ago\nand many of Thalmots mages ended up dead."],
+        "quest_name": "The wolf",
+        "quest_step": 4,
+        "progress_quest": true
+    }
+]

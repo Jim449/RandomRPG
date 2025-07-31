@@ -1,0 +1,26 @@
+[
+    {
+        "message": ["Hello there.\nYou're a traveler?",
+        "Lately, the meadow's been infested with spiders.\nStay safe out there.",
+        "I'm getting a bit worried about our hunter.\nHe lives alone in a cabin.",
+        "Can you carry a message to him?\nI'm sure he'll reward you\nfor your troubles.",
+        "Excellent!\nHis cabin is in the meadows."],
+        "quest_name": "The hunters cabin",
+        "quest_step": 0,
+        "progress_quest": true
+    },
+    {
+        "message": ["A message from the village?",
+                    "Those spiders are a nuisance\nbut I can handle them just fine.",
+                    "Anyways, it's dangerous out here.\nYou'll need a weapon.",
+                    "This is the Silkcutter.\nYou'll feel nimbler when you use it.",
+                    "You must be tired.\nRest up before you leave."],
+        "quest_name": "The hunters cabin",
+        "quest_step": 1,
+        "progress_quest": true,
+        "item": "Silkcutter",
+        "heal": true,
+        "restore": true,
+        "quest_initiation": "The wolf"
+    }
+]

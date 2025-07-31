@@ -9,6 +9,7 @@ class CombatInput:
     CONFIRMATION = 5
     CLEANUP = 6
     PREPARATION = 7
+    MESSAGE = 8
 
     COMBAT_FORMATION = {6: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (0, 2)],
                         5: [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)],
@@ -39,6 +40,8 @@ class CombatInput:
         self.submenu_x = 0
         self.submenu_y = 0
         self.confirmation_y = 0
+        self.message = []
+        self.current_message = 0
         self.place_enemies(enemies)
 
     def increase_target_x(self, direction: int) -> bool:
@@ -267,3 +270,20 @@ class CombatInput:
                 print(f"{unit.name} with speed {unit.combat_speed} is ready to act")
                 return unit
         return None
+    
+    def set_message(self, message: list[str]) -> None:
+        """Sets the message for the combat input."""
+        self.set_mode(self.MESSAGE)
+        self.message = message
+        self.current_message = 0
+    
+    def get_message(self) -> str:
+        """Returns the current message."""
+        if self.current_message < len(self.message):
+            message = self.message[self.current_message]
+            self.current_message += 1
+            return message
+        else:
+            self.undo_mode()
+            return None
+        

@@ -2,6 +2,7 @@ import mechanics.action as action
 import mechanics.spellEffect as spellEffect
 import mechanics.item as item
 from unit import Unit, Presence
+from conversation import Conversation
 from pygame import image
 from mechanics.characterStats import CharacterStats
 import json
@@ -162,3 +163,55 @@ class Storage:
             enemies.append(self.get_enemy(name, level))
 
         return enemies
+    
+    def _find_conversation(self, conversations: list[dict], step: int) -> dict:
+        """Returns the conversation with the given step."""
+        for conversation in conversations:
+            if conversation["quest_step"] == step:
+                return conversation
+        return None
+    
+    def _get_conversation(self, data: dict) -> Conversation:
+        """Returns a conversation from the given data."""
+        accept_conversation = None
+        reject_conversation = None
+
+        if "accept" in data:
+            accept_conversation = self._get_conversation(data["accept"])
+            data.pop("accept")
+        if "reject" in data:
+            reject_conversation = self._get_conversation(data["reject"])
+            data.pop("reject")
+
+        conversation = Conversation(**data)
+            
+        if accept_conversation is not None:
+            conversation.add_accept_conversation(accept_conversation)
+        if reject_conversation is not None:
+            conversation.add_reject_conversation(reject_conversation)
+            
+        return conversation
+
+    def get_conversation(self, filename: str, step: int = None) -> Conversation:
+        """Returns a conversation from the given file.
+        If the conversation belongs to a quest, the step should be provided."""
+        with open(f"resources/conversations/{filename}.json", "r") as file:
+            data_list = json.load(file)
+
+            if step is None:
+                data = data_list[0]
+            else:
+                data = self._find_conversation(data_list, step)
+            
+            return self._get_conversation(data)
+
+    def get_conversations(self, filename: str) -> list[Conversation]:
+        """Returns all conversations from the given file."""
+        with open(f"resources/conversations/{filename}.json", "r") as file:
+            data_list = json.load(file)
+            
+            conversations = []
+            for data in data_list:
+                conversations.append(self._get_conversation(data))
+
+            return conversations

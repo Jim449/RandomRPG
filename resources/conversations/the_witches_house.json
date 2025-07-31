@@ -1,0 +1,57 @@
+[
+    {
+        "message": ["What are you doing this deep into the forest?",
+        "Did you come to learn the secrets of magic?",
+        "Or are you looking for Thalmot?\nArvanis caused quite some trobule,\nor so I've heard.",
+        "Anyway, how would you like to help me out?",
+        "Recently, goblins have settled down in the forest.\nThey're trying to learn magic.",
+        "Preposterous. These dark creatures,\nhailing from the depths of Nimgif\nshould have no magical abilities of their own.",
+        "Slay them all.",
+        "Then, I'll consider teaching you some words\nin the old language.",
+        "It's the language that the residents of Thalmot still speak."],
+        "quest_name": "The witches house",
+        "quest_step": 0,
+        "progress_quest": true
+    },
+    {
+        "message": ["After defeating the goblin mage,\nyou pick up its wand.",
+        "You feel a surge of power.\nLike you have a commanding force\nwhich will not be ignored."],
+        "quest_name": "The witches house",
+        "quest_step": 1,
+        "progress_quest": true,
+        "item": "Goblins wand"
+    },
+    {
+        "message": ["Good. The goblins are dead.",
+        "And you've found an item of power.\nYou do seem to have an affinity for it.",
+        "I'll teach you words that'll slash\nyour enemies to pieces.",
+        "With that, maybe you'll manage to survive\nin this wilderness.",
+        "As for Thalmot, I can't help you find it.",
+        "I've forgotten the way and the mages\nno longer listen to me.",
+        "Given time, maybe they'll listen to you.\nI'll make no promises."],
+        "quest_name": "The witches house",
+        "quest_step": 2,
+        "progress_quest": true,
+        "spell": "Slash"
+    },
+    {
+        "message": ["Have you come back to learn\nmore words of power?",
+        "I could teach you the word of strength.\nIt'll raises your physical abilities.",
+        "Not for free, of course.\nGive me 100 coins."],
+        "quest_name": "The witches house",
+        "quest_step": 3,
+        "progress_quest": false,
+        "cost": 100,
+        "prompt": "Accept offer?",
+        "accept": {
+            "message": ["You really want to learn?\nListen closely..."],
+            "spell": "Strength",
+            "quest_name": "The witches house",
+            "quest_step": 3,
+            "progress_quest": true
+        },
+        "reject": {
+            "message": ["Good choice."]
+        }
+    }
+]

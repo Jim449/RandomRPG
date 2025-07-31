@@ -1188,12 +1188,12 @@ class Location():
                             check_passability=True,
                             avoid_bridges=False)
             
-            if line_amount > 0:
+            if line_amount > 0 and len(self.line_terrain_allowed) > 0:
                 # If there are fences,
                 # I create some small obstacles for them to collide with
                 # That should make them shorter
                 self.create_obstacles(obstacle_coverage / 2)
-                self.create_line_terrain(self.get_obstacle(self.line_terrain_allowed, None), line_amount)
+                self.create_line_terrain(random.choice(self.line_terrain_allowed), line_amount)
                 self.create_obstacles(obstacle_coverage / 2)
             else:
                 self.create_obstacles(obstacle_coverage)

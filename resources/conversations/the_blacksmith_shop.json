@@ -1,0 +1,38 @@
+[
+    {
+        "message": ["Hello there!", "I have a fine sabre for sale.", "It's yours for 100 coins."],
+        "quest_name": "The blacksmith",
+        "quest_step": 0,
+        "progress_quest": false,
+        "cost": 100,
+        "prompt": "Buy item?",
+        "accept": {
+            "message": ["Much appreciated.\nI'm sure it'll serve you well."],
+            "item": "Sabre",
+            "quest_name": "The blacksmith",
+            "quest_step": 0,
+            "progress_quest": true
+        },
+        "reject": {
+            "message": ["You think it's too expensive?", "Just go hunt some goblins."]
+        }
+    },
+    {
+        "message": ["Hello there!", "Would you like to buy this fine chainmail?", "It'll cost 400 coins."],
+        "quest_name": "The blacksmith",
+        "quest_step": 1,
+        "progress_quest": false,
+        "cost": 400,
+        "prompt": "Buy item?",
+        "accept": {
+            "message": ["Thank you.\nI'm quite confident in it."],
+            "item": "Chainmail",
+            "quest_name": "The blacksmith",
+            "quest_step": 1,
+            "progress_quest": true
+        },
+        "reject": {
+            "message": ["Don't be like that.\nYou'll need a good armor."]
+        }
+    }
+]

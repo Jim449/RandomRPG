@@ -171,7 +171,7 @@ class Game():
         area_3.add_encounter(Encounter(["Goblin"], [1], encounter_weight=1))
         area_3.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
         area_3.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1))
-        
+
         # Should get the densest forest terrain
         # Not much variation, except for a large lake somewhere
         area_4 = Area(4, "Deep forest",
@@ -190,9 +190,9 @@ class Game():
         # Deep forest enemies are weak but numerous
         # A high defense stat will be useful here
         area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Black_bat"], [1], encounter_weight=1))
         area_4.add_encounter(Encounter(["Black_bat", "Black_bat"], [1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Black_bat", "Black_bat", "Black_bat", "Black_bat"], [1, 1, 1, 1], encounter_weight=1))
         area_4.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
         area_4.add_encounter(Encounter(["Gray_wolf", "Gray_wolf"], [1, 1], encounter_weight=1))
 
@@ -229,13 +229,15 @@ class Game():
                       inaccessible_tile_amount=0)
         
         # The encounters in the meadows are quite weak
-        area_6.add_encounter(Encounter(["Red_spider"], [1], encounter_weight=3))
-        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=3))
-        area_6.add_encounter(Encounter(["Goblin"], [1], encounter_weight=3, reward=5))
-        # Maybe a quest encounter?
+        area_6.add_encounter(Encounter(["Red_spider"], [1], encounter_weight=2))
+        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=2))
+        area_6.add_encounter(Encounter(["Goblin"], [1], encounter_weight=2, reward=5))
+        
         conversation = Conversation([])
         conversation.add_quest("The wolf", 2, progress_quest=True)
-        area_6.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1, conversation=conversation))
+        area_6.add_encounter(Encounter(["Gray_wolf"], [1],
+                                       encounter_weight=1, 
+                                       conversation=conversation))
         
         # Should get a lot of mountain terrain,
         # focusing on internal mountains over edge mountains
@@ -363,16 +365,12 @@ class Game():
         self.current_room.location.safe_zone = True
         self.current_location.line_terrain_amount = (3, 3)
         self.current_location.pool_terrain_amount = (0, 0)
-        # self.current_location.allowed_obstacles.remove(Location.OAK)
-        # self.current_location.allowed_obstacles.append(Location.HOUSE_3x2)
-        # self.current_location.object_terrain_amount = (4, 4)
 
         # Isabel
         # She'll have to do without a name variable
         innkeeper = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
-        innkeeper_offer = Conversation(["Good day, traveler. You look weary.", "Let me heal your wounds."])
-        innkeeper_offer.add_reward(heal=True, restore=True)
-        innkeeper.add_conversation(innkeeper_offer)
+        innkeeper.add_conversation(self.storage.get_conversation("the_innkeeper"))
+        innkeeper.add_conversation(self.storage.get_conversation("the_wolf", 4))
 
         inn = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
                         presence=innkeeper, presence_x=1, presence_y=2,
@@ -382,35 +380,10 @@ class Game():
 
         # Henry
         blacksmith = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
-        blacksmith_business = Conversation(["Hello there!",
-                                            "I have a fine sabre for sale.",
-                                            "It's yours for 100 coins."])
-        blacksmith_business.add_quest("The blacksmith", 0)
-        blacksmith_purchase = Conversation(["Much appreciated.\nI'm sure it'll serve you well."])
-        blacksmith_purchase.add_reward(item="Sabre")
-        blacksmith_refusal = Conversation(["Is it too expensive?",
-                                           "I've heard the goblins out in the meadows\ncarry a lot of coins on them."])
-        blacksmith_business.add_accept_conversation(blacksmith_purchase, "Buy item?", cost=100)
-        blacksmith_business.add_reject_conversation(blacksmith_refusal)
-        blacksmith.add_conversation(blacksmith_business)
-
-        blacksmith_further_business = Conversation(["Hello there!",
-                                                    "Would you like to buy this fine chainmail?",
-                                                    "It'll cost 400 coins."])
-        blacksmith_further_business.add_quest("The blacksmith", 1)
-        blacksmith_further_purchase = Conversation(["Thank you.\nI'm quite confident in it."])
-        blacksmith_further_refusal = Conversation(["Don't be like that.\nYou need a good armor."])
-        blacksmith_further_business.add_accept_conversation(blacksmith_further_purchase, "Buy item?", cost=400)
-        blacksmith_further_business.add_reject_conversation(blacksmith_further_refusal)
-        blacksmith.add_conversation(blacksmith_further_business)
-
-        blacksmith_quest = Conversation(["Hey there.\nYou're a traveler?",
-                                         "Lately, the meadow's been infested with spiders.\nStay safe out there.",
-                                         "I'm getting a bit worried about our hunter.\nHe lives alone in a cabin.",
-                                         "Can you carry a message to him?\nI'm sure he'll reward you\nfor your troubles.",
-                                         "Excellent!\nHis cabin is in the meadows."])
-        blacksmith_quest.add_quest("The hunter", 0)
-        blacksmith.add_conversation(blacksmith_quest)
+        blacksmith.add_conversation(self.storage.get_conversation("the_blacksmith"))
+        blacksmith.add_conversation(self.storage.get_conversation("the_hunters_cabin", 0))
+        for conversation in self.storage.get_conversations("the_blacksmith_shop"):
+            blacksmith.add_conversation(conversation)
 
         smithy = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
                            presence=blacksmith, presence_x=1, presence_y=2,
@@ -420,67 +393,27 @@ class Game():
 
         # Eliza
         herbalist = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
-        herbalist_offer = Conversation(["Good day.",
-                                           "Are you interested in buying\nsome healing herbs?",
-                                           "It's 10 coins for one handful."])
-        herbalist_purchase = Conversation(["Excellent. Here you go."])
-        herbalist_purchase.add_reward(item="Herb")
-        herbalist_refusal = Conversation(["That's too bad.\nThey're really effective."])
-        herbalist_offer.add_accept_conversation(herbalist_purchase, "Buy item?", cost=10)
-        herbalist_offer.add_reject_conversation(herbalist_refusal)
-        herbalist.add_conversation(herbalist_offer)
+        herbalist.add_conversation(self.storage.get_conversation("the_herbalist"))
+        herbalist.add_conversation(self.storage.get_conversation("the_herbalists_gift", 0))
+        herbalist.add_conversation(self.storage.get_conversation("the_druids_blade", 1))
         
-        herbalist_gift = Conversation(["Good day.\nAre you going out into the wilderness?",
-                                       "Here, take this herb.\nIt'll keep you healthy.",
-                                       "If you need another one, come talk with me.\nI'll have to charge you, though."])
-        herbalist_gift.add_reward(item="Herb")
-        herbalist_gift.add_quest("The herbalist", 0)
-        herbalist.add_conversation(herbalist_gift)
-
         apothecary = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
                                presence=herbalist, presence_x=1, presence_y=2,
                                entrance_type=Location.IMPORTANT_BLOCKING,
                                entrance_x=1, entrance_y=2)
         self.current_location.add_key_object(apothecary)
 
-        # self.current_location.presences.append(innkeeper)
-        # self.current_location.presences.append(blacksmith)
-        # self.current_location.presences.append(herbalist)
-        
         # Hunters cabin. Hands out quests
         hunter_room = self.maze.get_room_of_number(3)
         hunter_room.location.line_terrain_amount = (0, 0)
         hunter_room.location.pool_terrain_amount = (1, 1)
-        # hunter_room.location.allowed_obstacles.remove(Location.OAK)
-        # hunter_room.location.allowed_obstacles.append(Location.HOUSE_3x2)
-        # hunter_room.location.object_terrain_amount = (1, 1)
-
+        
         # Richard
         hunter = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
-        hunter_greeting = Conversation(["Good day."])
-        hunter.add_conversation(hunter_greeting)
-
-        hunter_response = Conversation(["A message from the village?",
-                                        "Those spiders are a nuisance\nbut I can handle them just fine.",
-                                        "Anyways, it's dangerous out here.\nYou'll need a weapon.",
-                                        "This is the Silkcutter.\nYou'll feel nimbler when you use it.",
-                                        "You must be tired.\nTake a rest before you leave."])
-        hunter_response.add_quest("The hunter", 1, quest_initiation="The wolf")
-        hunter_response.add_reward(item="Silkcutter", heal=True, restore=True)
-        hunter.add_conversation(hunter_response)
-
-        hunter_offer = Conversation(["Lately, a vicious wolf\nhas been attacking the farmers.",
-                                     "If you can slay it,\nI'll give you a reward.",
-                                     "I don't know where it is.\nIf you wander around long enough,\nit'll find you."])
-        hunter_offer.add_quest("The wolf", 1, progress_quest=True)
-        hunter.add_conversation(hunter_offer)
-
-        hunter_reward = Conversation(["So you slayed that damned wolf.",
-                                      "Here, take this quarterstaff.\nIt's great for blocking enemy blows.",
-                                      "I'll give you some coins as well."])
-        hunter_reward.add_quest("The wolf", 3, progress_quest=True)
-        hunter_reward.add_reward(item="Quarterstaff", reward=30)
-        hunter.add_conversation(hunter_reward)
+        hunter.add_conversation(self.storage.get_conversation("the_hunter"))
+        hunter.add_conversation(self.storage.get_conversation("the_hunters_cabin", 1))
+        hunter.add_conversation(self.storage.get_conversation("the_wolf", 1))
+        hunter.add_conversation(self.storage.get_conversation("the_wolf", 3))
 
         hunter_room.location.presences.append(hunter)
 
@@ -505,13 +438,8 @@ class Game():
         great_oak_room.location.pool_terrain_amount = (0, 0)
         great_oak_room.location.object_terrain_amount = (0, 0)
 
-        buried_tool = Presence(trigger_on_contact=True)
-        tool_discovery = Conversation(["The ground beneath the oak tree\nseems to be disturbed.",
-                                       "You dig and find a small blade.",
-                                       "Found the Crescent knife."])
-        tool_discovery.add_reward(item="Crescent knife")
-        tool_discovery.add_quest("The druids knife", 0)
-        buried_tool.add_conversation(tool_discovery)
+        crescent_knife = Presence()
+        crescent_knife.add_conversation(self.storage.get_conversation("the_druids_blade", 0))
 
         oak_terrain = [
             [-1, -1, -1, -1, -1, -1, -1, -1],
@@ -525,13 +453,47 @@ class Game():
         ]
 
         the_oak = KeyObject(length=8, height=8,
-                            presence=buried_tool, presence_x=4, presence_y=4,
+                            presence=crescent_knife, presence_x=4, presence_y=4,
                             override_terrain=oak_terrain)
         great_oak_room.location.add_key_object(the_oak)
 
-        # Hope this works
-        # There's quite a bit of code
-        # I should load from json instead
+        witches_room = self.maze.get_room_of_number(11)
+        witches_room.location.min_obstacle_coverage = 0.5
+        witches_room.location.max_obstacle_coverage = 0.5
+        witches_room.location.line_terrain_amount = (0, 0)
+        witches_room.location.pool_terrain_amount = (1, 1)
+
+        witch = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
+        witch.add_conversation(self.storage.get_conversation("the_witch"))
+        witch.add_conversation(self.storage.get_conversation("the_witches_house", 0))
+        witch.add_conversation(self.storage.get_conversation("the_witches_house", 2))
+        witch.add_conversation(self.storage.get_conversation("the_witches_house", 3))
+
+        witches_house = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
+                                  presence=witch, presence_x=1, presence_y=2,
+                                  entrance_type=Location.IMPORTANT_BLOCKING,
+                                  entrance_x=1, entrance_y=2)
+        witches_room.location.add_key_object(witches_house)
+
+        wolves_room = self.maze.get_room_of_number(12)
+        wolves_room.location.allowed_obstacles = (Location.FOREST, Location.MOUNTAIN, Location.OAK)
+
+        # TODO: I'm going to need a cave entrance terrain
+        # which would have to count as IMPORTANT_PASSABLE or maybe IMPORTANT_BLOCKING
+        # I'll need a presence which functions as a warp
+        # I'll need an entire new maze (even if it's just a single room)
+        wolf_den_terrain = [
+            [30, 30, 30]
+            [30, 30, 30],
+            [30, 30, 30],
+            [0, -1, 0]
+        ]
+        # Replace this later
+        the_wolf = Presence()
+        wolf_den = KeyObject(length=3, height=4,
+                             presence=the_wolf, presence_x=1, presence_y=3,
+                             override_terrain=wolf_den_terrain)
+        wolves_room.location.add_key_object(wolf_den)
 
         # Build the locations
         self.maze.build_locations()
@@ -629,6 +591,24 @@ class Game():
                 elif not self.collision_check(self.player.grid_x + 1, self.player.grid_y):
                     self.player.start_movement((1, 0))
 
+    def escape_combat(self):
+        """Escapes the combat"""
+        animation = FadeAnimation(self.fade,
+                                  start_alpha=0,
+                                  end_alpha=255,
+                                  speed=8,
+                                  callback=self.escape_encounter)
+        self.animation_handler.add_animation(animation)
+    
+    def display_combat_message(self, message: list[str]):
+        self.combat_input.set_message(message)
+        animation = TextWriteAnimation(self.user_interface,
+                                       self.combat_input.get_message(),
+                                       self.font,
+                                       speed=self.TEXT_SPEED,
+                                       delay=60)
+        self.animation_handler.add_animation(animation)
+
     def handle_combat_input(self, key):
         """Handle keyboard input during combat"""
         
@@ -658,21 +638,16 @@ class Game():
                 elif choice == "Cast spell":
                     self.combat_input.set_mode(CombatInput.SPELL_SELECT)
                 elif choice == "Run":
-                    if not self.encounter.allow_escape:
-                        print("No escape allowed")
-                        # I should print a message to the user
-                        # Allow the player to select another action
-                    if self.combat.escape_check():
-                        animation = FadeAnimation(self.fade,
-                                                start_alpha=0,
-                                                end_alpha=255,
-                                                speed=8,
-                                                callback=self.escape_encounter)
-                        self.animation_handler.add_animation(animation)
+                    if self.encounter.block_escape:
+                        self.display_combat_message(["Failed to escape."])
+                    elif self.encounter.allow_escape or self.combat.escape_check():
+                        self.escape_combat()
                     else:
-                        print("Failed to escape")
-                        self.combat.select_action(self.storage.get_action("Inaction"), self.player)
-                        self.combat_input.set_mode(CombatInput.INACTIVE)
+                        self.display_combat_message(["Failed to escape."])
+                        # Since escape rate is so low, allow the player to act again
+                        # This means I cannot redo the escape roll
+                        # self.combat.select_action(self.storage.get_action("Inaction"), self.player)
+                        # self.combat_input.set_mode(CombatInput.INACTIVE)
             elif mode == CombatInput.TARGETING:
                 enemy = self.combat_input.get_enemy()
                 if enemy:
@@ -808,10 +783,15 @@ class Game():
         """Process combat logic and handle animations."""
         if self.animation_handler.has_animations():
             pass
-        # elif self.combat.phase == Combat.PHASE_FADEOUT:
-        #     # Do nothing until the fadeout is complete
-        #     # I may change how the fadeout works later
-        #     pass
+        elif self.combat_input.get_mode() == CombatInput.MESSAGE:
+            message = self.combat_input.get_message()
+            if message:
+                animation = TextWriteAnimation(self.user_interface,
+                                               message,
+                                               self.font,
+                                               speed=self.TEXT_SPEED,
+                                               delay=60)
+                self.animation_handler.add_animation(animation)
         elif self.combat.phase == Combat.PHASE_VICTORY:
             animation = FadeAnimation(
                 self.fade,
@@ -912,9 +892,9 @@ class Game():
         self.user_interface.draw_main_panel()
         self.user_interface.draw_health_and_magic(self.player)
 
-        # I may want to draw some messages
-        # I need a condition to check if there are messages
-        # self.user_interface.draw_message_panel()
+        if self.combat_input.get_mode() == CombatInput.MESSAGE:
+            self.user_interface.draw_message_panel(self.user_interface.full_message_panel)
+            return
 
         if self.combat_input.has_mode(CombatInput.MENU):
             self.user_interface.draw_left_panel(self.combat_input.menu_options,

@@ -48,6 +48,7 @@ class Character:
         self.action_points = 0
         self.max_action_points = 1
         self.combat_speed = 0.0
+        self.escape_roll = 0.0
         self.health_change = 0
         self.display_health = 0
         self.stunned = False
@@ -355,6 +356,7 @@ class Character:
         if self.accessory and self.accessory.has_passive():
             message += self.accessory.action.use(self, self)
         self.calculate_speed()
+        self.roll_escape()
         self.action_points = self.max_action_points
         self.display_health = self.base_stats.get_stat(self.HP)
         return message
@@ -410,6 +412,10 @@ class Character:
     def calculate_speed(self) -> None:
         """Calculate the speed of the character."""
         self.combat_speed = self.get_agility() + self.level * self.LEVEL_BONUS + random()
+    
+    def roll_escape(self) -> None:
+        """Rolls an escape value."""
+        self.escape_roll = random()
 
     def gain_experience(self, amount: int) -> bool:
         """Gain experience.

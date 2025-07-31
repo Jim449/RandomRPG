@@ -9,7 +9,8 @@ class Encounter:
                  encounter_weight: int = 1,
                  conversation: Conversation = None,
                  reward: int = 0,
-                 allow_escape: bool = True):
+                 allow_escape: bool = False,
+                 block_escape: bool = False):
         """Creates a new encounter with the given enemies.
         The enemies must be fetched from the storage.
         The encounter_weight determines the chance of the encounter being triggered.
@@ -24,6 +25,7 @@ class Encounter:
         self.conversation = conversation
         self.reward = reward
         self.allow_escape = allow_escape
+        self.block_escape = block_escape
     
     def instantiate(self, storage) -> Self:
         """Fetches the units from the storage.
