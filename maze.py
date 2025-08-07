@@ -42,12 +42,12 @@ class Maze(Blueprint):
                 self.rooms.append(room)
             self.map.append(row)
 
-    def get_area(self, id: int) -> list[Room]:
+    def get_area(self, id: int, shuffle: bool = False) -> list[Room]:
         """Returns all rooms of a given area.
 
         Raises:
             IndexError"""
-        return self.areas[id].get_rooms()
+        return self.areas[id].get_rooms(shuffle)
     
     def get_area_link(self, room: Room) -> Room:
         """Returns the external area room that is linked to the given room"""
@@ -161,14 +161,19 @@ class Maze(Blueprint):
             return
         raise IllegalMazeError("Areas couldn't be linked.")
 
-    def expand_from_room(self, room: Room, connect: bool = False, trail: Trail = None) -> Room:
-        """Given a room, returns a random, neighboring,
-        previously unconnected room within the same area.
-        Returns None if no valid room was found.
+    def expand_from_room(self, room: Room,
+                         connect_new_room: bool = False,
+                         connect_existing_room: bool = False,
+                         connect_trails: bool = False,
+                         trail: Trail = None) -> Room:
+        """Given a room, returns a random, neighboring room
+        and connect the rooms.
 
-        If connect is true, this instead returns a random, neighboring,
-        already connected room within the same area,
-        belonging to a different trail"""
+        If connect_new_room is true, connect a room which didn't have any previous connections.
+        If connect_existing_room is true, connect a room which already had connections.
+        If connect_trails, is true: connect a room belonging to a different trail (trail must be provided)
+        Returns None if no valid room was found.
+        """
         directions = self.get_directions()
 
         while len(directions) > 0:
@@ -177,12 +182,16 @@ class Maze(Blueprint):
             try:
                 neighbor = self.get_next_location(room.x, room.y, dir)
 
-                if connect:
-                    if neighbor.area == room.area \
-                        and trail.has_connection(neighbor.trail) == False:
-                        self.connect_rooms(room.x, room.y, dir)
-                        return neighbor
-                elif neighbor.is_unconnected() and neighbor.area == room.area:
+                if neighbor.area != room.area:
+                    continue
+
+                if connect_trails and not trail.has_connection(neighbor.trail):
+                    self.connect_rooms(room.x, room.y, dir)
+                    return neighbor
+                elif connect_new_room and neighbor.is_unconnected():
+                    self.connect_rooms(room.x, room.y, dir)
+                    return neighbor
+                elif connect_existing_room and not room.has_path(dir):
                     self.connect_rooms(room.x, room.y, dir)
                     return neighbor
             except IndexError:
@@ -194,12 +203,19 @@ class Maze(Blueprint):
         for trail in self.trails:
             for room in trail:
                 neighbor = self.expand_from_room(
-                    room, connect=True, trail=trail)
+                    room, connect_trails=True, trail=trail)
 
                 if neighbor != None:
                     trail.connect_trail(neighbor.trail)
                     self.trails[neighbor.trail].connect_trail(trail.id)
                     break
+    
+    def build_intersections(self, area_id: int) -> None:
+        """Adds paths between rooms of the same area"""
+        for room in self.get_area(area_id, shuffle=True):
+            neighbor = self.expand_from_room(room, connect_existing_room=True)
+            if neighbor != None:
+                return
 
     def explore(self, trail: Trail) -> bool:
         """Given a trail of rooms,
@@ -208,7 +224,7 @@ class Maze(Blueprint):
         Returns true if successful"""
         # Trail implements reverse order iteration
         for room in trail:
-            addition = self.expand_from_room(room)
+            addition = self.expand_from_room(room, connect_new_room=True)
 
             if addition != None:
                 trail.add_room(addition)
@@ -216,9 +232,12 @@ class Maze(Blueprint):
         trail.finished = True
         return False
 
-    def construct_areas(self) -> None:
+    def construct_areas(self, add_intersections: int = 0) -> None:
         """Constructs the maze by connecting rooms within the same areas.
-        Call construct_connections first"""
+        Call construct_connections first.
+        This will attempt to connect trails as far as possible.
+        Then, additional paths can be added within areas,
+        depending on the add_intersections parameter."""
         finished = False
 
         while not finished:
@@ -229,6 +248,10 @@ class Maze(Blueprint):
                     self.explore(trail)
                     finished = False
         self.connect_trails()
+
+        for i in range(add_intersections):
+            for area_id in range(len(self.areas)):
+                self.build_intersections(area_id)
     
     def get_link_direction(self, room: Room) -> int:
         """Returns the room of a different area that is connected to the given room"""

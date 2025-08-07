@@ -2,7 +2,7 @@ from conversation import Conversation
 
 
 class Quest():
-    def __init__(self, name: str, step: int = 0):
+    def __init__(self, name: str, step: int = 1):
         """Initializes a quest."""
         self.name = name
         self.step = step
@@ -37,7 +37,7 @@ class QuestLog():
                 return None
         except KeyError:
             if step == 0:
-                quest = Quest(name)
+                quest = Quest(name, step=0)
                 self.add_quest(quest)
                 return quest
             else:

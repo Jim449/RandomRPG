@@ -10,6 +10,13 @@
         "progress_quest": true
     },
     {
+        "message": ["Please carry on our message to the hunter.",
+        "I'm sure he'll reward you for it."],
+        "quest_name": "The hunters cabin",
+        "quest_step": 1,
+        "progress_quest": false
+    },
+    {
         "message": ["A message from the village?",
                     "Those spiders are a nuisance\nbut I can handle them just fine.",
                     "Anyways, it's dangerous out here.\nYou'll need a weapon.",

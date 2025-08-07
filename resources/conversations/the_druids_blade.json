@@ -11,7 +11,7 @@
     {
         "message": ["You found a blade under the great oak?",
         "This is a druids blade.\nIt's used to harvest herbs.",
-        "They might have buried it\nso that the goblins wouldn't find it.\nI fear for the worst.",
+        "Its owner might have buried it\nso that the goblins wouldn't find it.\nI fear for the worst.",
         "If you have time, would you carry that blade\nto the glade in the deep forest?"],
         "quest_name": "The druids blade",
         "quest_step": 1,

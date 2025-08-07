@@ -130,6 +130,7 @@ class Location():
     FENCE_H = 3
     FENCE_V = 4
     # 5 - IMPORTANT_BLOCKING
+    MOUNTAIN_ENTRANCE = 6
     ANONYMOUS_BLOCKING = 9
     OAK = 10
     HOUSE_3x2 = 11
@@ -231,6 +232,8 @@ class Location():
             terrain_type = Location.BRIDGE_H
         elif terrain >= Location.BRIDGE_V and terrain < Location.BRIDGE_V + 15:
             terrain_type = Location.BRIDGE_V
+        elif terrain == Location.MOUNTAIN_ENTRANCE:
+            terrain_type = Location.MOUNTAIN
         else:
             terrain_type = terrain
         return terrain_type
@@ -837,6 +840,12 @@ class Location():
         2 double inward rotations, where the obstacle neighbors different terrain
         diagonally on both sides."""
         obstacle = self.get_terrain(x, y)
+
+        if obstacle == Location.MOUNTAIN_ENTRANCE:
+            # As of now, entrances are only placed to the south of mountains
+            # and cannot rotate
+            return
+        
         straight = ((0, -1), (1, 0), (0, 1), (-1, 0))
         diagonal = ((1, -1), (1, 1), (-1, 1), (-1, -1))
         straight_surroundings = [None, None, None, None]

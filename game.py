@@ -8,7 +8,7 @@ from combat_input import CombatInput
 from adventure_menu import AdventureMenu
 from combat import Combat
 from conversation import Conversation
-from quest_log import QuestLog, Quest
+from quest_log import QuestLog
 from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
 from storage import Storage
@@ -45,11 +45,12 @@ class Game():
         self.conversation = None
         self.encounter = None
         self.inventory = None
+        self.triggered_presence = None
         self.storage = Storage()
         self.animation_handler = AnimationHandler()
         self.fadeout = 0
         self.fadeout_direction = 0
-        self.encounter_interval = (10, 30)
+        self.encounter_interval = (10, 40)
         self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
         self.fade = pygame.Surface((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         self.fade.fill((0, 0, 0, 0))
@@ -58,6 +59,7 @@ class Game():
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
             Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
+            Location.MOUNTAIN_ENTRANCE: pygame.image.load("resources/obstacles/Green_rock_entrance.png"),
             Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
             Location.FENCE_H: pygame.image.load("resources/obstacles/Fence_H.png"),
             Location.FENCE_V: pygame.image.load("resources/obstacles/Fence_V.png"),
@@ -286,10 +288,13 @@ class Game():
         
         for tries in range(10):
             try:
+                # Connects the maze areas
                 self.maze.construct_connections()
+                # Can give more randomness to maze area shapes
                 # self.maze.exchange_rooms()
                 self.maze.start_trails()
-                self.maze.construct_areas()
+                # Creates rooms within the areas
+                self.maze.construct_areas(add_intersections=1)
                 break
             except IllegalMazeError as e:
                 print(f"Attempt {tries} failed: {e}")
@@ -313,8 +318,6 @@ class Game():
 
         # Assign room numbers so that I can override room settings
         # Rooms connecting to other areas get specific room numbers
-        # I may want to create single-entrance rooms
-        # and assign specific room numbers to them
         self.maze.clear_room_numbers()
         
         meadows.get_connecting_room(forest.id).number = 0
@@ -356,32 +359,29 @@ class Game():
         great_mountains.assign_room_numbers(73)
 
         # Starting room, a safe zone with healing NPCs
-        self.current_room = self.maze.get_room_of_number(2)
-        self.current_location = self.current_room.location
-        self.current_area = self.maze.areas[self.current_room.area]
-        
-        print(f"Current room: {(self.current_room.x, self.current_room.y)}")
+        village_room = self.maze.get_room_of_number(2)
 
-        self.current_room.location.safe_zone = True
-        self.current_location.line_terrain_amount = (3, 3)
-        self.current_location.pool_terrain_amount = (0, 0)
+        village_room.location.safe_zone = True
+        village_room.line_terrain_amount = (3, 3)
+        village_room.pool_terrain_amount = (0, 0)
 
         # Isabel
         # She'll have to do without a name variable
         innkeeper = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
         innkeeper.add_conversation(self.storage.get_conversation("the_innkeeper"))
-        innkeeper.add_conversation(self.storage.get_conversation("the_wolf", 4))
+        innkeeper.add_conversation(self.storage.get_conversation("the_wolf", 3))
 
         inn = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
                         presence=innkeeper, presence_x=1, presence_y=2,
                         entrance_type=Location.IMPORTANT_BLOCKING,
                         entrance_x=1, entrance_y=2)
-        self.current_location.add_key_object(inn)
+        village_room.location.add_key_object(inn)
 
         # Henry
         blacksmith = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
         blacksmith.add_conversation(self.storage.get_conversation("the_blacksmith"))
         blacksmith.add_conversation(self.storage.get_conversation("the_hunters_cabin", 0))
+        blacksmith.add_conversation(self.storage.get_conversation("the_hunters_cabin", 1))
         for conversation in self.storage.get_conversations("the_blacksmith_shop"):
             blacksmith.add_conversation(conversation)
 
@@ -389,7 +389,7 @@ class Game():
                            presence=blacksmith, presence_x=1, presence_y=2,
                            entrance_type=Location.IMPORTANT_BLOCKING,
                            entrance_x=1, entrance_y=2)
-        self.current_location.add_key_object(smithy)
+        village_room.location.add_key_object(smithy)
 
         # Eliza
         herbalist = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
@@ -401,7 +401,7 @@ class Game():
                                presence=herbalist, presence_x=1, presence_y=2,
                                entrance_type=Location.IMPORTANT_BLOCKING,
                                entrance_x=1, entrance_y=2)
-        self.current_location.add_key_object(apothecary)
+        village_room.location.add_key_object(apothecary)
 
         # Hunters cabin. Hands out quests
         hunter_room = self.maze.get_room_of_number(3)
@@ -411,11 +411,10 @@ class Game():
         # Richard
         hunter = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
         hunter.add_conversation(self.storage.get_conversation("the_hunter"))
-        hunter.add_conversation(self.storage.get_conversation("the_hunters_cabin", 1))
+        hunter.add_conversation(self.storage.get_conversation("the_hunters_cabin", 2))
+        hunter.add_conversation(self.storage.get_conversation("the_wolf", 0))
         hunter.add_conversation(self.storage.get_conversation("the_wolf", 1))
-        hunter.add_conversation(self.storage.get_conversation("the_wolf", 3))
-
-        hunter_room.location.presences.append(hunter)
+        hunter.add_conversation(self.storage.get_conversation("the_wolf", 2))
 
         # A small house surrounded by fences
         hunter_cabin_terrain = [
@@ -457,6 +456,8 @@ class Game():
                             override_terrain=oak_terrain)
         great_oak_room.location.add_key_object(the_oak)
 
+        # Witch house in the forest
+        # Hands out a quest and sells spells
         witches_room = self.maze.get_room_of_number(11)
         witches_room.location.min_obstacle_coverage = 0.5
         witches_room.location.max_obstacle_coverage = 0.5
@@ -475,28 +476,35 @@ class Game():
                                   entrance_x=1, entrance_y=2)
         witches_room.location.add_key_object(witches_house)
 
-        wolves_room = self.maze.get_room_of_number(12)
-        wolves_room.location.allowed_obstacles = (Location.FOREST, Location.MOUNTAIN, Location.OAK)
-
-        # TODO: I'm going to need a cave entrance terrain
-        # which would have to count as IMPORTANT_PASSABLE or maybe IMPORTANT_BLOCKING
-        # I'll need a presence which functions as a warp
-        # I'll need an entire new maze (even if it's just a single room)
-        wolf_den_terrain = [
-            [30, 30, 30]
+        # A mini dungeon, though it doesn't work yet
+        # I could turn it into a goblin cave instead
+        goblin_room = self.maze.get_room_of_number(12)
+        goblin_room.location.allowed_obstacles = (Location.FOREST, Location.MOUNTAIN, Location.OAK)
+        goblin_cave_terrain = [
             [30, 30, 30],
             [30, 30, 30],
-            [0, -1, 0]
+            [30, 6, 30],
+            [1, -1, 1]
         ]
-        # Replace this later
-        the_wolf = Presence()
-        wolf_den = KeyObject(length=3, height=4,
-                             presence=the_wolf, presence_x=1, presence_y=3,
-                             override_terrain=wolf_den_terrain)
-        wolves_room.location.add_key_object(wolf_den)
+        goblin_mage = Encounter(["Goblin_shaman", "Goblin"], [1, 1],
+                                block_escape=True)
+        the_goblin = Presence(encounter=goblin_mage, trigger_on_contact=True,
+                              conversation=self.storage.get_conversation("the_witches_house", 2))
+        goblin_cave = KeyObject(length=3, height=4,
+                                presence=the_goblin, presence_x=1, presence_y=2,
+                                override_terrain=goblin_cave_terrain)
+        goblin_room.location.add_key_object(goblin_cave)
 
         # Build the locations
         self.maze.build_locations()
+
+        # Set the current room
+        # Let's start at the goblins cave, I want to test some stuff
+        self.current_room = goblin_room
+        self.current_location = self.current_room.location
+        self.current_area = self.maze.areas[self.current_room.area]
+        
+        print(f"Current room: {(self.current_room.x, self.current_room.y)}")
 
         # Add the player
         start_position = self.current_location.get_random_position()
@@ -523,7 +531,36 @@ class Game():
             return False
 
     def collision_check(self, x: int, y: int) -> bool:
+        """Returns True if the tile is impassable.
+        If there is a presence on the tile,
+        attempts to start a conversation.
+        If a conversation starts, tile is treated as impassable."""
+        presence = self.current_location.get_presence_at(x, y)
+
+        if presence and presence.trigger_on_contact:
+            self.conversation = self.quest_log.get_conversation(presence.conversations)
+
+            if self.conversation:
+                self.triggered_presence = presence
+                self.start_conversation()
+                return True        
         return not self.current_location.get_passable(x, y)
+    
+    def investigate(self, x: int, y: int) -> bool:
+        """Attempts to start a conversation with a nearby presence.
+        Should be call from the players grid position.
+        The player doesn't have to face the presence.
+        Returns True if a conversation starts."""
+        presence = self.current_location.get_nearby_presence(x, y)
+        
+        if presence and not presence.trigger_on_contact:
+            self.conversation = self.quest_log.get_conversation(presence.conversations)
+            
+            if self.conversation:
+                self.triggered_presence = presence
+                self.start_conversation()
+                return True
+        return False
 
     def handle_events(self):
         """Handle pygame events"""
@@ -546,11 +583,7 @@ class Game():
                     return
                 # Handle other key presses when not in combat/conversation/menu
                 elif event.key == pygame.K_l:
-                    npc = self.current_location.get_nearby_presence(self.player.grid_x, self.player.grid_y)
-                    if npc and not self.conversation:
-                        self.conversation = self.quest_log.get_conversation(npc.conversations)
-                        if self.conversation:
-                            self.start_conversation()
+                    self.investigate(self.player.grid_x, self.player.grid_y)
                 elif event.key == pygame.K_RETURN:
                     self.adventure_menu.set_mode(AdventureMenu.MENU)
         
@@ -969,9 +1002,8 @@ class Game():
                     self.user_interface.draw_left_panel(self.adventure_menu.item_options,
                                                         self.adventure_menu.details_y)
 
-    def start_encounter(self):
-        self.encounter = self.current_area.get_encounter(self.quest_log)
-        self.encounter = self.encounter.instantiate(self.storage)
+    def start_encounter(self, encounter: Encounter):
+        self.encounter = encounter.instantiate(self.storage)
         self.combat_input = CombatInput(self.player, self.encounter.units)
         # Set test spells for now
         self.combat_input.set_spells(["Fireball", "Heal"])
@@ -1003,7 +1035,7 @@ class Game():
         
         if self.encounter_countdown <= 0:
             self.encounter_countdown = randrange(self.encounter_interval[0], self.encounter_interval[1])
-            self.start_encounter()
+            self.start_encounter(self.current_area.get_encounter(self.quest_log))
     
     def run(self):
         """Main game loop"""

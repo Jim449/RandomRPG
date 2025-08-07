@@ -9,6 +9,7 @@ class Action:
     PASSIVE = "Passive"
     BASE_AMOUNT = "base_amount"
     SPELL_POWER = "spell_power"
+    RESISTANCE_POWER = "resistance_power"
     TARGET_VITALITY = "target_vitality"
     
     def __init__(self, name: str,
@@ -19,7 +20,8 @@ class Action:
                  action_function: Optional[Callable[[Any, Any], str]] = None,
                  effect: Optional[SpellEffect] = None,
                  print_action_name: bool = True,
-                 arguments: dict = None):
+                 arguments: dict = None,
+                 cost: int = 0):
         """
         Initialize an action.
         
@@ -36,6 +38,7 @@ class Action:
         self.action_function = action_function
         self.print_action_name = print_action_name
         self.arguments = arguments
+        self.cost = cost
     
     def set_action_function(self, func: Callable[[Any, Any], str]) -> None:
         """
@@ -89,6 +92,15 @@ def attack(user: Any, target: Any, arguments: Any = None) -> str:
     damage = round(damage * uniform(*DAMAGE_RANGE))
     target.damage(damage)
     return f"{user.name} attacks {target.name}"
+
+def spell_attack(user: Any, target: Any, arguments: Any = None) -> str:
+    amount = arguments[Action.BASE_AMOUNT]
+    amount += user.get_final_stat("Resistance") * arguments[Action.SPELL_POWER]
+    amount -= target.get_final_stat("Resistance") * arguments[Action.RESISTANCE_POWER]
+    amount = amount * (1 + user.level * 0.2) * uniform(*DAMAGE_RANGE)
+
+    damage = target.damage(amount)
+    return f"{target.name} takes {damage} damage"
 
 def defend(user: Any, target: Any, arguments: Any = None) -> str:
     return f"{user.name} does nothing"

@@ -1,0 +1,14 @@
+{
+    "name": "Goblin shaman",
+    "moveset": ["Slash"],
+    "stats": {
+        "Strength": 4,
+        "Defense": 0,
+        "Intelligence": 2,
+        "Resistance": 0,
+        "Agility": 3,
+        "Stamina": 0,
+        "Rank": 6,
+        "Constitution": 1
+    }
+}

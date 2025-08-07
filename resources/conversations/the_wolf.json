@@ -8,6 +8,13 @@
         "progress_quest": true
     },
     {
+        "message": ["Did you find the wolf?",
+        "It's somewhere in the meadows.\nI'll reward you if you slay it."],
+        "quest_name": "The wolf",
+        "quest_step": 2,
+        "progress_quest": false
+    },
+    {
         "message": ["So you slayed that damned wolf.",
         "Here, take this quarterstaff.\nIt's great for blocking enemy blows.",
         "I'll give you some coins as well."],

@@ -15,7 +15,7 @@
     },
     {
         "message": ["After defeating the goblin mage,\nyou pick up its wand.",
-        "You feel a surge of power.\nLike you have a commanding force\nwhich will not be ignored."],
+        "You feel a surge of power."],
         "quest_name": "The witches house",
         "quest_step": 1,
         "progress_quest": true,
@@ -25,7 +25,7 @@
         "message": ["Good. The goblins are dead.",
         "And you've found an item of power.\nYou do seem to have an affinity for it.",
         "I'll teach you words that'll slash\nyour enemies to pieces.",
-        "With that, maybe you'll manage to survive\nin this wilderness.",
+        "With that, maybe you can survive\nin this wilderness.",
         "As for Thalmot, I can't help you find it.",
         "I've forgotten the way and the mages\nno longer listen to me.",
         "Given time, maybe they'll listen to you.\nI'll make no promises."],

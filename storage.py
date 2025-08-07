@@ -28,9 +28,30 @@ class Storage:
                                    action_function=action.inaction,
                                    print_action_name=False)
         self.actions[new_action.name] = new_action
+        # Healing herb effect
         new_action = action.Action("Heal", target_ally=True,
                                    action_function=action.heal,
                                    arguments={"base_amount": 20})
+        self.actions[new_action.name] = new_action
+        # Low damage, good if user is unskilled
+        # or if the opponent has high resistance
+        # Damage = 8 + 2x - 2y
+        new_action = action.Action("Slash", target_ally=False,
+                                   action_function=action.spell_attack,
+                                   cost=1,
+                                   arguments={"base_amount": 8,
+                                              "spell_power": 2,
+                                              "resistance_power": 2})
+        self.actions[new_action.name] = new_action
+        # High damage if user is skilled
+        # and the opponent has low resistance
+        # Damage = 0 + 8x - 8y
+        new_action = action.Action("Firebolt", target_ally=False,
+                                   action_function=action.spell_attack,
+                                   cost=1,
+                                   arguments={"base_amount": 0,
+                                              "spell_power": 8,
+                                              "resistance_power": 8})
         self.actions[new_action.name] = new_action
     
     def _init_items(self):
@@ -112,8 +133,8 @@ class Storage:
                              stamina=1)
         self.items[new_item.name] = new_item
 
-        new_item = item.Item("Ash staff",
-                             "A pale staff carrying a gentle power.",
+        new_item = item.Item("Goblins wand",
+                             "A short wand, infused with evil magic.",
                              type=item.Item.WEAPON,
                              intelligence=1)
         self.items[new_item.name] = new_item
@@ -192,17 +213,21 @@ class Storage:
             
         return conversation
 
-    def get_conversation(self, filename: str, step: int = None) -> Conversation:
+    def get_conversation(self, filename: str, index: int = 0) -> Conversation:
         """Returns a conversation from the given file.
         If the conversation belongs to a quest, the step should be provided."""
         with open(f"resources/conversations/{filename}.json", "r") as file:
             data_list = json.load(file)
 
-            if step is None:
-                data = data_list[0]
-            else:
-                data = self._find_conversation(data_list, step)
-            
+            # if step is None:
+            #     data = data_list[0]
+            # else:
+            #     data = self._find_conversation(data_list, step)
+            # Changed to index.
+            # This allows there to be multiple conversations with the same step.
+            # This could be useful when you want to add reminder messages to npcs,
+            # which don't advance the quest.
+            data = data_list[index]
             return self._get_conversation(data)
 
     def get_conversations(self, filename: str) -> list[Conversation]:
