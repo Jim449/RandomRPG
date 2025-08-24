@@ -9,9 +9,10 @@ from area import Area
 class Maze(Blueprint):
     """A maze"""
 
-    def __init__(self, area_count: int, area_length: int):
+    def __init__(self, area_count: int, area_length: int, name: str = None):
         """Generates an empty maze"""
         super().__init__(area_count, area_length)
+        self.name: str = name
         self.length: int = area_count * area_length
         self.size: int = self.length**2
         self.areas: list[Area] = []
@@ -474,7 +475,7 @@ class Maze(Blueprint):
 
     def copy(self) -> Self:
         """Returns a copy of the maze"""
-        maze = Maze(self.area_count, self.area_length)
+        maze = Maze(self.area_count, self.area_length, self.name)
         maze.blueprint = self.blueprint
         maze.map = [[None for x in range(self.length)] for y in range(self.length)]
         maze.trails = self.trails

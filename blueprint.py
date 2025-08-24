@@ -277,11 +277,14 @@ class Blueprint():
         blueprint.connect_rooms(1, 1, Room.SOUTH)
         blueprint.connect_rooms(2, 1, Room.SOUTH)
         blueprint.connect_rooms(0, 2, Room.EAST)
-        # Would connect outside of the map. Which is permissable but I'm not sure if it works
-        # blueprint.connect_rooms(0, 2, Room.SOUTH)
         blueprint.connect_rooms(1, 2, Room.EAST)
         return blueprint
 
+    @staticmethod
+    def underground_blueprint() -> Self:
+        blueprint = Blueprint(3, 2)
+        blueprint.setup()
+        return blueprint
 
 if __name__ == "__main__":
     blueprint: Blueprint = Blueprint(3, 3)

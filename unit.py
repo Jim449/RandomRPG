@@ -25,12 +25,38 @@ class Presence:
         self.flashing: bool = False
         self.conversations: list[Conversation] = []
         self.placed: bool = False
+        self.warp_map: str = None
+        self.warp_room_number: int = None
+        self.exit_dir_x: int = None
+        self.exit_dir_y: int = None
     
     def set_position(self, x: int, y: int) -> None:
         """Sets the player's position."""
         self.x = x
         self.y = y
     
+    def add_warp(self, map: str, room_number: int, exit_dir_x: int, exit_dir_y: int) -> None:
+        """Adds a warp to a different map."""
+        self.warp_map = map
+        self.warp_room_number = room_number
+        self.exit_dir_x = exit_dir_x
+        self.exit_dir_y = exit_dir_y
+    
+    def is_warp(self) -> bool:
+        """Returns True if the presence is a warp."""
+        return self.warp_map is not None
+    
+    def is_matching_warp(self, map: str, room_number: int) -> bool:
+        """Returns True if the presence is a warp
+        connecting to the given map and room."""
+        if self.warp_map is None:
+            return False
+        return self.warp_map == map and self.warp_room_number == room_number
+
+    def get_exit_position(self) -> tuple[int, int]:
+        """Returns the warp exit position."""
+        return (self.grid_x + self.exit_dir_x, self.grid_y + self.exit_dir_y)
+
     def set_grid_position(self, x: int = None, y: int = None) -> None:
         """Sets the player's grid position."""
         if x is not None:

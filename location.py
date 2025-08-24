@@ -120,6 +120,9 @@ class Location():
     BRIDGE_H = -45
     BRIDGE_V = -30
     # Terrain / expansion types
+    PALE_GRASS = -6
+    BRIGHT_GREEN_ROCK = -5
+    PALE_GREEN_ROCK = -4
     UNREACHABLE_PASSABLE = -3 # Passable, immutable terrain that doesn't have to be reachable
     REGULAR_PASSABLE = -2 # Passable terrain.
     IMPORTANT_PASSABLE = -1 # Passable terrain that cannot be modified.
@@ -131,6 +134,7 @@ class Location():
     FENCE_V = 4
     # 5 - IMPORTANT_BLOCKING
     MOUNTAIN_ENTRANCE = 6
+    MOUNTAIN_EXIT = 7
     ANONYMOUS_BLOCKING = 9
     OAK = 10
     HOUSE_3x2 = 11
@@ -232,7 +236,7 @@ class Location():
             terrain_type = Location.BRIDGE_H
         elif terrain >= Location.BRIDGE_V and terrain < Location.BRIDGE_V + 15:
             terrain_type = Location.BRIDGE_V
-        elif terrain == Location.MOUNTAIN_ENTRANCE:
+        elif terrain in (Location.MOUNTAIN_ENTRANCE, Location.MOUNTAIN_EXIT):
             terrain_type = Location.MOUNTAIN
         else:
             terrain_type = terrain
@@ -253,7 +257,7 @@ class Location():
             return Location.EXPAND_BRIDGE
         elif terrain_type in (Location.FENCE_H, Location.FENCE_V, Location.FENCE):
             return Location.EXPAND_LINE
-        elif terrain == Location.GRASS:
+        elif terrain in (Location.GRASS, Location.PALE_GRASS, Location.BRIGHT_GREEN_ROCK, Location.PALE_GREEN_ROCK):
             return Location.REGULAR_PASSABLE
         elif terrain == Location.IMPORTANT_PASSABLE:
             return Location.IMPORTANT_PASSABLE
@@ -338,16 +342,16 @@ class Location():
 
         if self.room.paths[Location.NORTH] == 1:
             for x in range(self.room.get_entrance_start(Location.NORTH), self.room.get_entrance_end(Location.NORTH)):
-                self.terrain[0][x] = Location.GRASS
+                self.terrain[0][x] = self.base_tile
         if self.room.paths[Location.SOUTH] == 1:
             for x in range(self.room.get_entrance_start(Location.SOUTH), self.room.get_entrance_end(Location.SOUTH)):
-                self.terrain[self.height - 1][x] = Location.GRASS
+                self.terrain[self.height - 1][x] = self.base_tile
         if self.room.paths[Location.WEST] == 1:
             for y in range(self.room.get_entrance_start(Location.WEST), self.room.get_entrance_end(Location.WEST)):
-                self.terrain[y][0] = Location.GRASS
+                self.terrain[y][0] = self.base_tile
         if self.room.paths[Location.EAST] == 1:
             for y in range(self.room.get_entrance_start(Location.EAST), self.room.get_entrance_end(Location.EAST)):
-                self.terrain[y][self.width - 1] = Location.GRASS
+                self.terrain[y][self.width - 1] = self.base_tile
 
     @staticmethod
     def is_passable(type: int) -> bool:
@@ -406,6 +410,9 @@ class Location():
     
     def create_obstacles(self, obstacle_percentage: float = 0.3) -> None:
         """Creates random obstacles while ensuring all passable terrain remains reachable"""
+        
+        if not self.single_tile_terrain_allowed:
+            return
         
         interior_cells = self._get_interior_cells()
         
@@ -809,7 +816,7 @@ class Location():
                 break
                 
             # Temporarily remove terrain piece
-            self.terrain[y][x] = Location.GRASS
+            self.terrain[y][x] = self.base_tile
             
             # Check if connectivity is restored
             if self.is_terrain_connected():
@@ -841,9 +848,10 @@ class Location():
         diagonally on both sides."""
         obstacle = self.get_terrain(x, y)
 
-        if obstacle == Location.MOUNTAIN_ENTRANCE:
+        if obstacle in (Location.MOUNTAIN_ENTRANCE, Location.MOUNTAIN_EXIT):
             # As of now, entrances are only placed to the south of mountains
-            # and cannot rotate
+            # Exits are only placed to the north of mountains
+            # They cannot rotate
             return
         
         straight = ((0, -1), (1, 0), (0, 1), (-1, 0))
@@ -1179,10 +1187,14 @@ class Location():
                 continue
 
             self.create_objects()
-            try:
-                self.place_all_presences()
-            except ValueError as e:
-                continue
+            # TODO: For now, presences should be placed using KeyObjects
+            # I rarely need to place presences completely randomly
+            # but I should still have the option
+            # There's a risk of placing presences multiple times
+            # try:
+            #     self.place_all_presences()
+            # except ValueError as e:
+            #     continue
 
             for i in range(4):
                 self.expand_pool(self.corners[i], check_passability=True, avoid_bridges=False)

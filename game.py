@@ -33,7 +33,12 @@ class Game():
         self.POINTER = pygame.image.load("resources/other/Pointer.png")
         self.TEXT_SPEED = 2
 
+        # Consider adding to storage, add dynamic loading
         self.maze = None
+        self.underground_maze = None
+
+        # Need to change variable names if I want to use current_maze instead of maze
+        self.current_maze = None
         self.current_room = None
         self.current_location = None
         self.current_area = None
@@ -57,9 +62,13 @@ class Game():
         
         self.TERRAIN = {
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
+            Location.PALE_GRASS: pygame.image.load("resources/obstacles/Pale_grass.png"),
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
+            Location.BRIGHT_GREEN_ROCK: pygame.image.load("resources/obstacles/Bright_green_rock.png"),
+            Location.PALE_GREEN_ROCK: pygame.image.load("resources/obstacles/Pale_green_rock.png"),
             Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
             Location.MOUNTAIN_ENTRANCE: pygame.image.load("resources/obstacles/Green_rock_entrance.png"),
+            Location.MOUNTAIN_EXIT: pygame.image.load("resources/obstacles/Green_rock_exit.png"),
             Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
             Location.FENCE_H: pygame.image.load("resources/obstacles/Fence_H.png"),
             Location.FENCE_V: pygame.image.load("resources/obstacles/Fence_V.png"),
@@ -101,8 +110,9 @@ class Game():
                 self.TERRAIN[Location.BRIDGE_V + i + 1] = pygame.image.load(f"resources/obstacles/Bridge_V_{dir}.png")
             except FileNotFoundError:
                 pass
-            
-    def new_game(self):
+    
+    def define_main_map(self):
+        """Defines the main map."""
         blueprint = Blueprint.main_map_blueprint()
         print(blueprint.get_layout())
         
@@ -155,7 +165,7 @@ class Game():
         # Should get a lot of forest terrain
         # as well as a few ponds and some fences
         area_3 = Area(3, "Forest",
-                      base_tile=Location.GRASS,
+                      base_tile=Location.PALE_GRASS,
                       allowed_obstacles=(Location.FOREST, Location.FENCE, Location.WATER),
                       pool_terrain_amount=(-1, 2),
                       pool_terrain_growth=(0, 10),
@@ -279,7 +289,7 @@ class Game():
                       base_inaccessible_tile=Location.WATER,
                       inaccessible_tile_amount=4)
         
-        maze = Maze(3, 3)
+        maze = Maze(3, 3, "overworld")
         for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):
             maze.add_area(area)
 
@@ -476,8 +486,6 @@ class Game():
                                   entrance_x=1, entrance_y=2)
         witches_room.location.add_key_object(witches_house)
 
-        # A mini dungeon, though it doesn't work yet
-        # I could turn it into a goblin cave instead
         goblin_room = self.maze.get_room_of_number(12)
         goblin_room.location.allowed_obstacles = (Location.FOREST, Location.MOUNTAIN, Location.OAK)
         goblin_cave_terrain = [
@@ -486,21 +494,127 @@ class Game():
             [30, 6, 30],
             [1, -1, 1]
         ]
-        goblin_mage = Encounter(["Goblin_shaman", "Goblin"], [1, 1],
-                                block_escape=True)
-        the_goblin = Presence(encounter=goblin_mage, trigger_on_contact=True,
-                              conversation=self.storage.get_conversation("the_witches_house", 2))
+        # We're going underground!
+        cave_warp = Presence(trigger_on_contact=True)
+        cave_warp.add_warp("underground", 4, 0, 1)
+
         goblin_cave = KeyObject(length=3, height=4,
-                                presence=the_goblin, presence_x=1, presence_y=2,
+                                presence=cave_warp, presence_x=1, presence_y=2,
                                 override_terrain=goblin_cave_terrain)
         goblin_room.location.add_key_object(goblin_cave)
 
         # Build the locations
         self.maze.build_locations()
 
-        # Set the current room
-        # Let's start at the goblins cave, I want to test some stuff
-        self.current_room = goblin_room
+    def define_underground_map(self):
+        """Creates an underground maze for all areas.
+        These are small 2x2 areas where one might find npcs or clear some quests.
+        Dungeons are not defined here."""
+        underground_blueprint = Blueprint.underground_blueprint()
+        
+        area_0 = Area(0, "Great mountains", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        
+        area_1 = Area(1, "Highlands", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        
+        area_2 = Area(2, "Coastline", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        
+        area_3 = Area(3, "Forest", base_tile=Location.PALE_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(3, 4), pool_terrain_growth=(0, 4))
+        # Spiders and goblins in the forest underground
+        area_3.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
+        area_3.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
+        
+        area_4 = Area(4, "Deep forest", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        # Mostly bats down here
+        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Black_bat"], [1], encounter_weight=1))
+        area_4.add_encounter(Encounter(["Black_bat", "Black_bat"], [1, 1], encounter_weight=1))
+
+        area_5 = Area(5, "River", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        
+        area_6 = Area(6, "Meadows", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        # Only spiders in the meadows underground
+        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=1))
+
+        area_7 = Area(7, "Hills", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+        
+        area_8 = Area(8, "Lakeside", base_tile=Location.BRIGHT_GREEN_ROCK,
+        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
+        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
+
+        self.underground_maze = Maze(3, 2, "underground")
+        for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):
+            self.underground_maze.add_area(area)
+
+        self.underground_maze.build_maze(underground_blueprint)
+        print(self.underground_maze.get_layout())
+
+        for room in self.underground_maze.rooms:
+            for direction in range(4):
+                room.set_terrain(direction, Location.MOUNTAIN)
+
+        self.underground_maze.setup_locations()
+
+        great_mountains = self.underground_maze.areas[0]
+        highlands = self.underground_maze.areas[1]
+        coastline = self.underground_maze.areas[2]
+        forest = self.underground_maze.areas[3]
+        deep_forest = self.underground_maze.areas[4]
+        river = self.underground_maze.areas[5]
+        meadows = self.underground_maze.areas[6]
+        hills = self.underground_maze.areas[7]
+        lakeside = self.underground_maze.areas[8]
+
+        self.underground_maze.clear_room_numbers()
+
+        meadows.assign_room_numbers(0)
+        forest.assign_room_numbers(4)
+        hills.assign_room_numbers(8)
+        deep_forest.assign_room_numbers(12)
+        river.assign_room_numbers(16)
+        lakeside.assign_room_numbers(20)
+        coastline.assign_room_numbers(24)
+        highlands.assign_room_numbers(28)
+        great_mountains.assign_room_numbers(32)
+
+        goblin_room = self.underground_maze.get_room_of_number(4)
+        goblin_cave_terrain = [
+            [-2, -1, -2],
+            [30, 7, 30],
+            [30, 30, 30],
+            [30, 30, 30]
+        ]
+        cave_warp = Presence(trigger_on_contact=True)
+        cave_warp.add_warp("overworld", 12, 0, -1)
+
+        goblin_cave = KeyObject(length=3, height=4,
+                                presence=cave_warp, presence_x=1, presence_y=1,
+                                override_terrain=goblin_cave_terrain)
+        goblin_room.location.add_key_object(goblin_cave)
+
+        self.underground_maze.build_locations()
+
+    def new_game(self):
+        self.define_main_map()
+        self.define_underground_map()
+        
+        self.current_maze = self.maze
+        self.current_room = self.maze.get_room_of_number(3)
         self.current_location = self.current_room.location
         self.current_area = self.maze.areas[self.current_room.area]
         
@@ -522,7 +636,26 @@ class Game():
     def set_room(self, room: Room):
         self.current_room = room
         self.current_location = room.location
-        self.current_area = self.maze.areas[room.area]
+        self.current_area = self.current_maze.areas[room.area]
+    
+    def warp_to(self, map: str, room_number: int):
+        """Warps the player to a different map."""
+        last_map = self.current_maze.name
+        last_room_number = self.current_room.number
+
+        if map == "overworld":
+            self.current_maze = self.maze
+        elif map == "underground":
+            self.current_maze = self.underground_maze
+        
+        self.current_room = self.current_maze.get_room_of_number(room_number)
+        self.current_location = self.current_room.location
+        self.current_area = self.current_maze.areas[self.current_room.area]
+
+        for presence in self.current_location.presences:
+            if presence.is_matching_warp(last_map, last_room_number):
+                self.player.set_grid_position(*presence.get_exit_position())
+                return
 
     def transition_check(self, x: int, y: int) -> bool:
         if x < 0 or x >= self.GRID_SIZE or y < 0 or y >= self.GRID_SIZE:
@@ -538,12 +671,17 @@ class Game():
         presence = self.current_location.get_presence_at(x, y)
 
         if presence and presence.trigger_on_contact:
+            print(f"Triggering presence at {x}, {y}")
+
             self.conversation = self.quest_log.get_conversation(presence.conversations)
 
             if self.conversation:
                 self.triggered_presence = presence
                 self.start_conversation()
-                return True        
+                return True
+            elif presence.is_warp():
+                self.warp_to(presence.warp_map, presence.warp_room_number)
+                return True
         return not self.current_location.get_passable(x, y)
     
     def investigate(self, x: int, y: int) -> bool:
@@ -569,10 +707,8 @@ class Game():
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
                 # Handle combat input
-                elif self.combat:
+                if self.combat:
                     self.handle_combat_input(event.key)
                     return
                 elif self.conversation:
@@ -601,25 +737,25 @@ class Game():
             # Handle movement keys
             if keys[pygame.K_w]:
                 if self.transition_check(self.player.grid_x, self.player.grid_y - 1):
-                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.NORTH))
+                    self.set_room(self.current_maze.get_next_location(self.current_room.x, self.current_room.y, Room.NORTH))
                     self.player.set_grid_position(y=self.GRID_SIZE - 1)
                 elif not self.collision_check(self.player.grid_x, self.player.grid_y - 1):
                     self.player.start_movement((0, -1))
             elif keys[pygame.K_s]:
                 if self.transition_check(self.player.grid_x, self.player.grid_y + 1):
-                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.SOUTH))
+                    self.set_room(self.current_maze.get_next_location(self.current_room.x, self.current_room.y, Room.SOUTH))
                     self.player.set_grid_position(y=0)
                 elif not self.collision_check(self.player.grid_x, self.player.grid_y + 1):
                     self.player.start_movement((0, 1))
             elif keys[pygame.K_a]:
                 if self.transition_check(self.player.grid_x - 1, self.player.grid_y):
-                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.WEST))
+                    self.set_room(self.current_maze.get_next_location(self.current_room.x, self.current_room.y, Room.WEST))
                     self.player.set_grid_position(x=self.GRID_SIZE - 1)
                 elif not self.collision_check(self.player.grid_x - 1, self.player.grid_y):
                     self.player.start_movement((-1, 0))
             elif keys[pygame.K_d]:
                 if self.transition_check(self.player.grid_x + 1, self.player.grid_y):
-                    self.set_room(self.maze.get_next_location(self.current_room.x, self.current_room.y, Room.EAST))
+                    self.set_room(self.current_maze.get_next_location(self.current_room.x, self.current_room.y, Room.EAST))
                     self.player.set_grid_position(x=0)
                 elif not self.collision_check(self.player.grid_x + 1, self.player.grid_y):
                     self.player.start_movement((1, 0))
@@ -837,6 +973,7 @@ class Game():
         elif self.combat.phase == Combat.PHASE_DEFEAT:
             # I don't have a main menu yet
             # Just fade to black and end the game
+            # It doesn't work though, I do need a main menu
             self.combat.phase = Combat.PHASE_VOID
             animation = FadeAnimation(
                 self.fade,
@@ -856,15 +993,10 @@ class Game():
         elif self.combat_input.get_mode() == CombatInput.INACTIVE:
             self.combat.process_turn()
 
-            # Hopefully, these animations should look good
-            # They don't cover all cases
-            # but at this point, everyone's using basic attacks all the time
             if self.combat.active_unit and self.combat.active_unit.team == 0:
                 forward_animation = WalkDownAnimation(self.combat.active_unit)
                 backward_animation = WalkUpAnimation(self.combat.active_unit)
 
-                # TODO: I should move that combat ui to the user_interface
-                # and set a proper position for the health text
                 if self.player.health_change < 0:
                     damage_animation = TextAscendAnimation(
                         self.screen,
