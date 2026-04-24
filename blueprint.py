@@ -178,7 +178,7 @@ class Blueprint():
             x = randrange(self.length)
             y = randrange(self.length)
 
-            if empty == False:
+            if not empty:
                 return self.get_location(x, y)
             elif empty and self.get_location(x, y).is_empty():
                 return self.get_location(x, y)
@@ -192,7 +192,7 @@ class Blueprint():
         nx = x
         ny = y
 
-        if dir == None:
+        if dir is None:
             dir = randrange(4)
 
         if dir == Room.NORTH:
@@ -298,4 +298,5 @@ if __name__ == "__main__":
     blueprint.connect_rooms(0, 1, Room.SOUTH)
     blueprint.connect_rooms(0, 2, Room.EAST)
     print(blueprint.get_layout())
-    blueprint.randomize_areas()
+    randomized = blueprint.randomize_areas()
+    print(randomized.get_layout())

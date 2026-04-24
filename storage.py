@@ -228,7 +228,7 @@ class Storage:
             # This could be useful when you want to add reminder messages to npcs,
             # which don't advance the quest.
             data = data_list[index]
-            return self._get_conversation(data)
+            return self._get_conversation(data) 
 
     def get_conversations(self, filename: str) -> list[Conversation]:
         """Returns all conversations from the given file."""

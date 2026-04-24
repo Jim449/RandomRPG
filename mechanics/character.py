@@ -8,13 +8,13 @@ from math import floor
 
 class Character:
     """Describes a characters combat abilities."""
-    LEVEL_BONUS = 0.2
+    LEVEL_BONUS = 0.0
     LEVEL_CAP = 20
     EXPERIENCE_REQUIREMENT = (0, 100, 400, 900, 1600,
-                              2500, 3600, 4900, 8100,
-                              10000, 12100, 14400, 16900,
-                              19600, 22500, 25600, 28900,
-                              32400, 36100, 40000)
+                              2500, 3600, 4900, 6400, 8100,
+                              10000, 12100, 14400, 16900, 19600,
+                              22500, 25600, 28900, 32400, 36100,
+                              40000)
     STRENGTH = "Strength"
     DEFENSE = "Defense"
     INTELLIGENCE = "Intelligence"

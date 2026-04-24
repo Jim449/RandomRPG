@@ -126,6 +126,18 @@ class Area():
         area.rooms = []
         area.encounters = self.encounters
         return area
+    
+    def get_save_game_dict(self) -> dict:
+        encounters = []
+        for encounter in self.encounters:
+            encounters.append(encounter.get_save_game_dict())
+
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "encounters": encounters
+        }
+        return data
 
     def __len__(self) -> int:
         return len(self.rooms)

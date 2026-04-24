@@ -2,6 +2,7 @@ import pygame
 from mechanics.character import Character
 from conversation import Conversation
 from encounter import Encounter
+from quest_log import QuestLog
 
 class Presence:
     """An object on the map that can be interacted with
@@ -11,18 +12,27 @@ class Presence:
     def __init__(self, grid_x: int = -1, grid_y: int = -1,
                  sprite: pygame.Surface = None,
                  blink_sprite: pygame.Surface = None,
+                 sprite_path: str = None,
                  encounter: Encounter = None,
-                 trigger_on_contact: bool = False):
+                 trigger_on_contact: bool = False,
+                 hide_on_silence: bool = False,
+                 conversation_names: list[tuple[str, int]] = None):
         self.grid_x: int = grid_x
         self.grid_y: int = grid_y
         self.sprite: pygame.Surface = sprite
         self.blink_sprite: pygame.Surface = blink_sprite
+        self.sprite_path: str = sprite_path
         self.encounter: Encounter = encounter
         self.trigger_on_contact: bool = trigger_on_contact
+        self.hide_on_silence: bool = hide_on_silence
         self.x: int = grid_x * 32
         self.y: int = grid_y * 32
         self.alpha: int = 255
         self.flashing: bool = False
+        if conversation_names:
+            self.conversation_names: list[tuple[str, int]] = conversation_names
+        else:
+            self.conversation_names: list[tuple[str, int]] = []
         self.conversations: list[Conversation] = []
         self.placed: bool = False
         self.warp_map: str = None
@@ -36,7 +46,13 @@ class Presence:
         self.y = y
     
     def add_warp(self, map: str, room_number: int, exit_dir_x: int, exit_dir_y: int) -> None:
-        """Adds a warp to a different map."""
+        """Adds a warp to a different map.
+        
+        Args:
+            map: name of the map to warp to
+            room_number: id of the room to warp to
+            exit_dir_x: where to warp player, x offset from the destination warp
+            exit_dir_y: where to warp player, y offset from the destination warp"""
         self.warp_map = map
         self.warp_room_number = room_number
         self.exit_dir_x = exit_dir_x
@@ -58,7 +74,7 @@ class Presence:
         return (self.grid_x + self.exit_dir_x, self.grid_y + self.exit_dir_y)
 
     def set_grid_position(self, x: int = None, y: int = None) -> None:
-        """Sets the player's grid position."""
+        """Sets the units grid position."""
         if x is not None:
             self.grid_x = x
             self.x = x * 32
@@ -68,11 +84,11 @@ class Presence:
         self.placed = True
 
     def get_position(self) -> tuple[int, int]:
-        """Returns the player's position."""
+        """Returns the units position."""
         return (self.x, self.y)
     
     def get_grid_position(self) -> tuple[int, int]:
-        """Returns the player's grid position."""
+        """Returns the units grid position."""
         return (self.grid_x, self.grid_y)
     
     def is_placed(self) -> bool:
@@ -102,10 +118,24 @@ class Presence:
         else:
             return self.sprite
     
-    def is_visible(self) -> bool:
-        """Returns True if the unit is visible."""
-        return self.sprite is not None and self.alpha > 0
+    # def is_visible(self, quest_log: QuestLog = None) -> bool:
+    #     """Returns True if the unit is visible."""
+    #     if self.sprite is None or self.alpha == 0:
+    #         return False
+    #     elif self.hide_on_silence and not quest_log.get_conversation(self.conversations):
+    #         return False
+    #     else:
+    #         return True
     
+    def should_show(self, quest_log: QuestLog) -> bool:
+        """Returns True if the units sprite should be loaded"""
+        if not self.sprite_path and not self.sprite:
+            return False
+        elif self.hide_on_silence and not quest_log.get_conversation(self.conversations):
+            return False
+        else:
+            return True
+
     def add_conversation(self, conversation: Conversation) -> None:
         """Adds a conversation to the unit."""
         self.conversations.append(conversation)

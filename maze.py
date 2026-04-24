@@ -487,6 +487,24 @@ class Maze(Blueprint):
             maze.areas[room_copy.area].add_room(room_copy)
             maze.map[room_copy.y][room_copy.x] = room_copy
         return maze
+    
+    def get_save_game_dict(self):
+        """Returns the save game dictionary.
+        This contains information about the mazes current appearance."""
+        area_data = []
+        for area in self.areas:
+            area_data.append(area.get_save_game_dict())
+        
+        room_data = []
+        for room in self.rooms:
+            room_data.append(room.get_save_game_dict())
+
+        data = {
+            "name": self.name,
+            "length": self.length,
+            "areas": area_data,
+            "rooms": room_data
+        }
 
 
 if __name__ == "__main__":

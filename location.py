@@ -90,6 +90,7 @@ class KeyObject():
     
     def check_overlap(self, x: int, y: int, length: int, height: int) -> bool:
         """Checks if the key object overlaps with the given area."""
+        # TODO does this really work though? I could think of a better test
         if self.current_x is None or self.current_y is None:
             return False
         
@@ -138,8 +139,10 @@ class Location():
     ANONYMOUS_BLOCKING = 9
     OAK = 10
     HOUSE_3x2 = 11
+    MUSHROOMS = 12
     WATER = 15
     MOUNTAIN = 30
+    PURPLE_WATER = 45
 
     def __init__(self, room, allowed_obstacles: tuple[int], width: int = 15, height: int = 15, gap: int = 3,
                  base_tile: int = 0, base_inaccessible_tile: int = None,
@@ -170,8 +173,7 @@ class Location():
         self.room = room
         self.base_tile = base_tile
         self.base_inaccessible_tile = base_inaccessible_tile
-        self.min_obstacle_coverage = obstacle_coverage[0]
-        self.max_obstacle_coverage = obstacle_coverage[1]
+        self.obstacle_coverage = obstacle_coverage
         self.pool_terrain_amount = pool_terrain_amount
         self.pool_terrain_growth = pool_terrain_growth
         self.line_terrain_amount = line_terrain_amount
@@ -249,7 +251,7 @@ class Location():
         terrain_type = self.get_terrain_type(terrain)
         if terrain_type == Location.MOUNTAIN:
             return Location.EXPAND_POOL
-        elif terrain_type == Location.WATER:
+        elif terrain_type in (Location.WATER, Location.PURPLE_WATER):
             return Location.EXPAND_POOL
         elif terrain_type == Location.BRIDGE_H:
             return Location.EXPAND_BRIDGE
@@ -354,8 +356,13 @@ class Location():
                 self.terrain[y][self.width - 1] = self.base_tile
 
     @staticmethod
-    def is_passable(type: int) -> bool:
-        return type <= 0
+    def is_passable(type: int, is_replacable: bool = False) -> bool:
+        """Returns True if the terrain is passable.
+        If is_replacable, the terrain cannot be IMPORTANT_PASSABLE"""
+        if is_replacable:
+            return type <= 0 and type != Location.IMPORTANT_PASSABLE
+        else:
+            return type <= 0
     
     def is_terrain_connected(self) -> bool:
         """Validates that all passable terrain (0) is reachable using flood fill.
@@ -484,7 +491,7 @@ class Location():
         """Creates random objects while ensuring all passable terrain remains reachable"""
         interior_cells = self._get_interior_cells()
         
-        if not interior_cells:
+        if not interior_cells or not self.object_terrain_allowed:
             return
         
         random.shuffle(interior_cells)
@@ -530,7 +537,9 @@ class Location():
     def reset_all_presences(self) -> None:
         """Prepares all presences for placement."""
         for presence in self.presences:
-            presence.undo_placement()
+            # TODO Some of these are None? I need to fix that
+            # presence.undo_placement()
+            pass
     
     def get_presence_at(self, x: int, y: int) -> Presence:
         """Returns the presence at the given coordinates, or None if there is none."""
@@ -747,7 +756,7 @@ class Location():
             interior_cells = []
             for y in range(2, self.height - 2):
                 for x in range(2, self.width - 2):
-                    if self.is_passable(self.terrain[y][x]):
+                    if self.is_passable(self.terrain[y][x], is_replacable=True):
                         interior_cells.append((x, y))
             
             if not interior_cells:
@@ -769,14 +778,14 @@ class Location():
         if direction == 0:  # Horizontal fence
             # Extend left
             x = start_x
-            while x >= 1 and self.is_passable(self.terrain[start_y][x]):
+            while x >= 1 and self.is_passable(self.terrain[start_y][x], is_replacable=True):
                 terrain_cells.append((x, start_y))
                 self.terrain[start_y][x] = terrain_type + 1
                 x -= 1
             
             # Extend right
             x = start_x + 1
-            while x < self.width - 1 and self.is_passable(self.terrain[start_y][x]):
+            while x < self.width - 1 and self.is_passable(self.terrain[start_y][x], is_replacable=True):
                 terrain_cells.append((x, start_y))
                 self.terrain[start_y][x] = terrain_type + 1
                 x += 1
@@ -784,14 +793,14 @@ class Location():
         else:  # Vertical fence
             # Extend up
             y = start_y
-            while y >= 1 and self.is_passable(self.terrain[y][start_x]):
+            while y >= 1 and self.is_passable(self.terrain[y][start_x], is_replacable=True):
                 terrain_cells.append((start_x, y))
                 self.terrain[y][start_x] = terrain_type + 2
                 y -= 1
             
             # Extend down
             y = start_y + 1
-            while y < self.height - 1 and self.is_passable(self.terrain[y][start_x]):
+            while y < self.height - 1 and self.is_passable(self.terrain[y][start_x], is_replacable=True):
                 terrain_cells.append((start_x, y))
                 self.terrain[y][start_x] = terrain_type + 2
                 y += 1
@@ -1140,6 +1149,9 @@ class Location():
                     avoid_bridges: bool = False) -> None:
         tries = amount * 100
 
+        if not allowed_terrain:
+            return
+
         while amount > 0 and tries > 0:
             x = random.randrange(1, self.width - 2)
             y = random.randrange(1, self.height - 2)
@@ -1199,7 +1211,7 @@ class Location():
             for i in range(4):
                 self.expand_pool(self.corners[i], check_passability=True, avoid_bridges=False)
             
-            obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
+            obstacle_coverage = random.uniform(self.obstacle_coverage[0], self.obstacle_coverage[1])
             pool_amount = random.randint(self.pool_terrain_amount[0], self.pool_terrain_amount[1])
             line_amount = random.randint(self.line_terrain_amount[0], self.line_terrain_amount[1])
 
@@ -1259,13 +1271,14 @@ class Location():
                          avoid_bridges=True)
         
         # Adds small obstacles on land
-        obstacle_coverage = random.uniform(self.min_obstacle_coverage, self.max_obstacle_coverage)
+        obstacle_coverage = random.uniform(self.obstacle_coverage[0], self.obstacle_coverage[1])
         self.create_obstacles(obstacle_coverage)
         self.rotate_all_obstacles()
 
     def add_key_object(self, key_object: KeyObject) -> None:
         self.key_objects.append(key_object)
-        self.presences.append(key_object.presence)
+        if key_object.presence:
+            self.presences.append(key_object.presence)
     
     def place_key_object_presence(self, key_object: KeyObject, start_x: int, start_y: int) -> None:
         """Places the presence of a key object onto the location.
@@ -1284,12 +1297,12 @@ class Location():
     def place_key_object(self, key_object: KeyObject, x: int, y: int) -> bool:
         """Places a key object in the location.
         Returns True if successful, False otherwise."""
-        if x + key_object.length >= self.width - 1 or y + key_object.height >= self.height - 1:
+        if x + key_object.length >= self.width or y + key_object.height >= self.height:
             return False
         
-        for placed_object in self.key_objects:
-            if placed_object.check_overlap(x, y, key_object.length, key_object.height):
-                return False
+        # for placed_object in self.key_objects:
+        #     if placed_object.check_overlap(x, y, key_object.length, key_object.height):
+        #         return False
         
         if key_object.override_terrain is not None:
             self.paste_terrain(key_object, x, y)
@@ -1316,8 +1329,16 @@ class Location():
 
         for tries in range(100):
             key_object = self.key_objects[i]
-            x = random.randrange(1, self.width - 1 - key_object.length)
-            y = random.randrange(1, self.height - 1 - key_object.height)
+            
+            if key_object.x:
+                x = key_object.x
+            else:
+                x = random.randrange(1, self.width - key_object.length)
+            
+            if key_object.y:
+                y = key_object.y
+            else:
+                y = random.randrange(1, self.height - key_object.height)
 
             if self.place_key_object(key_object, x, y):
                 i += 1
@@ -1325,6 +1346,18 @@ class Location():
                     return True
         return False
 
+    def get_save_game_dict(self) -> dict:
+        """Returns the save game dictionary.
+        This contains information about the locations current appearance"""
 
+        # Finally, I'll need to add presence data to this
+        # There'll be many simple presences in the game
+        # so I may not want to use the storage
+        data = {
+            "terrain": self.terrain,
+            "base_tile": self.base_tile,
+            "safe_zone": self.safe_zone
+            }
+        return data
 
     

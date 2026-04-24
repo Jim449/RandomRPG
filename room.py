@@ -165,6 +165,19 @@ class Room():
     def reverse(dir: int) -> int:
         """Returns the reverse direction"""
         return (dir + 2) % 4
+    
+    def get_save_game_dict(self) -> dict:
+        """Returns a dictionary describing the rooms current appearence.
+        Instructions for creating the room aren't saved"""
+        data = {
+            "x": self.x,
+            "y": self.y,
+            "number": self.number,
+            "area": self.area,
+            "paths": self.paths,
+            "location": self.location.get_save_game_dict()
+        }
+        return data
 
 
 if __name__ == "__main__":

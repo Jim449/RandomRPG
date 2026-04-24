@@ -1,13 +1,12 @@
 from blueprint import Blueprint
 from area import Area
-from maze import Maze, IllegalMazeError
+from maze import Maze
 from location import Location, KeyObject
 from unit import Unit, Presence
 from room import Room
 from combat_input import CombatInput
 from adventure_menu import AdventureMenu
 from combat import Combat
-from conversation import Conversation
 from quest_log import QuestLog
 from animation_handler import AnimationHandler
 from mechanics.characterStats import CharacterStats
@@ -17,6 +16,7 @@ from random import randrange
 from animation import TextAscendAnimation, FadeAnimation, TextWriteAnimation, WalkDownAnimation, WalkUpAnimation, BlinkAnimation
 from user_interface import UserInterface
 from encounter import Encounter
+from map_builder import MapBuilder
 import pygame
 import sys
 
@@ -64,12 +64,14 @@ class Game():
             Location.GRASS: pygame.image.load("resources/tiles/Grass_2.png"),
             Location.PALE_GRASS: pygame.image.load("resources/obstacles/Pale_grass.png"),
             Location.FOREST: pygame.image.load("resources/obstacles/Forest_3.png"),
+            Location.MUSHROOMS: pygame.image.load("resources/obstacles/Large_mushroom.png"),
             Location.BRIGHT_GREEN_ROCK: pygame.image.load("resources/obstacles/Bright_green_rock.png"),
             Location.PALE_GREEN_ROCK: pygame.image.load("resources/obstacles/Pale_green_rock.png"),
             Location.MOUNTAIN: pygame.image.load("resources/obstacles/Green_rock.png"),
             Location.MOUNTAIN_ENTRANCE: pygame.image.load("resources/obstacles/Green_rock_entrance.png"),
             Location.MOUNTAIN_EXIT: pygame.image.load("resources/obstacles/Green_rock_exit.png"),
             Location.WATER: pygame.image.load("resources/obstacles/Water.png"),
+            Location.PURPLE_WATER: pygame.image.load("resources/obstacles/Purple_water.png"),
             Location.FENCE_H: pygame.image.load("resources/obstacles/Fence_H.png"),
             Location.FENCE_V: pygame.image.load("resources/obstacles/Fence_V.png"),
             Location.OAK: pygame.image.load("resources/obstacles/Oak_ABOVE.png"),
@@ -100,6 +102,7 @@ class Game():
         for i, dir in enumerate(directions):
             self.TERRAIN[Location.MOUNTAIN + i + 1] = pygame.image.load(f"resources/obstacles/Green_rock_{dir}.png")
             self.TERRAIN[Location.WATER + i + 1] = pygame.image.load(f"resources/obstacles/Water_{dir}.png")
+            self.TERRAIN[Location.PURPLE_WATER + i + 1] = pygame.image.load(f"resources/obstacles/Purple_water_{dir}.png")
 
         for i, dir in enumerate(directions[:8]):
             try:
@@ -110,533 +113,55 @@ class Game():
                 self.TERRAIN[Location.BRIDGE_V + i + 1] = pygame.image.load(f"resources/obstacles/Bridge_V_{dir}.png")
             except FileNotFoundError:
                 pass
-    
-    def define_main_map(self):
-        """Defines the main map."""
-        blueprint = Blueprint.main_map_blueprint()
-        print(blueprint.get_layout())
-        
-        # This should get a lot of mountain terrain
-        # Note, there are 13x13=169 internal cells
-        # so I can't add too many obstacles
-        area_0 = Area(0, "Great mountains",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.FOREST, Location.MOUNTAIN),
-                      pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(0, 25),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(15, 20),
-                      obstacle_coverage=(0.1, 0.2),
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=12,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # Should get a lot of mountain terrain
-        # but less than the great mountains
-        # Gets some lakes
-        area_1 = Area(1, "Highlands",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.FOREST, Location.WATER, Location.MOUNTAIN),
-                      pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(0, 20),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(10, 15),
-                      obstacle_coverage=(0.1, 0.2),
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=6,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # Should get mostly lake areas with some mountains around them
-        area_2 = Area(2, "Coastline",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
-                      pool_terrain_amount=(0, 1),
-                      pool_terrain_growth=(0, 15),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(5, 10),
-                      obstacle_coverage=(0.1, 0.2),
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=2,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=6)
-        
-        # Should get a lot of forest terrain
-        # as well as a few ponds and some fences
-        area_3 = Area(3, "Forest",
-                      base_tile=Location.PALE_GRASS,
-                      allowed_obstacles=(Location.FOREST, Location.FENCE, Location.WATER),
-                      pool_terrain_amount=(-1, 2),
-                      pool_terrain_growth=(0, 10),
-                      line_terrain_amount=(-1, 3),
-                      large_obstacle_growth=(0, 0),
-                      obstacle_coverage=(0.3, 0.4),
-                      large_obstacles=tuple(),
-                      large_obstacle_amount=0,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # Forest enemies aren't too strong
-        area_3.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=1))
-        area_3.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
-        area_3.add_encounter(Encounter(["Goblin"], [1], encounter_weight=1))
-        area_3.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
-        area_3.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1))
-
-        # Should get the densest forest terrain
-        # Not much variation, except for a large lake somewhere
-        area_4 = Area(4, "Deep forest",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.FOREST, Location.WATER),
-                      pool_terrain_amount=(0, 0),
-                      pool_terrain_growth=(10, 20),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(15, 20),
-                      obstacle_coverage=(0.4, 0.5),
-                      large_obstacles=(Location.WATER,),
-                      large_obstacle_amount=1,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # Deep forest enemies are weak but numerous
-        # A high defense stat will be useful here
-        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Black_bat"], [1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Black_bat", "Black_bat"], [1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Gray_wolf", "Gray_wolf"], [1, 1], encounter_weight=1))
-
-        # Should get a lot of water and some lake areas
-        # Water shouldn't expand much
-        # Forest terrain is dense and there may be some fences
-        area_5 = Area(5, "River",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.FENCE, Location.FOREST, Location.WATER),
-                      pool_terrain_amount=(0, 0),
-                      pool_terrain_growth=(5, 10),
-                      line_terrain_amount=(-1, 3),
-                      large_obstacle_growth=(0, 5),
-                      obstacle_coverage=(0.2, 0.3),
-                      large_obstacles=(Location.WATER,),
-                      large_obstacle_amount=6,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=2)
-        
-        # Should get sparse forest terrain
-        # as well as some ponds and fences
-        area_6 = Area(6, "Meadows",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.WATER, Location.FOREST, Location.FENCE, Location.OAK),
-                      pool_terrain_amount=(-1, 2),
-                      pool_terrain_growth=(0, 10),
-                      line_terrain_amount=(-1, 3),
-                      object_terrain_amount=(0, 2),
-                      large_obstacle_growth=(0, 0),
-                      obstacle_coverage=(0.1, 0.2),
-                      large_obstacles=tuple(),
-                      large_obstacle_amount=0,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # The encounters in the meadows are quite weak
-        area_6.add_encounter(Encounter(["Red_spider"], [1], encounter_weight=2))
-        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=2))
-        area_6.add_encounter(Encounter(["Goblin"], [1], encounter_weight=2, reward=5))
-        
-        conversation = Conversation([])
-        conversation.add_quest("The wolf", 2, progress_quest=True)
-        area_6.add_encounter(Encounter(["Gray_wolf"], [1],
-                                       encounter_weight=1, 
-                                       conversation=conversation))
-        
-        # Should get a lot of mountain terrain,
-        # focusing on internal mountains over edge mountains
-        # Vegetation is sparse
-        area_7 = Area(7, "Hills",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
-                      pool_terrain_amount=(1, 3),
-                      pool_terrain_growth=(0, 20),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(0, 5),
-                      obstacle_coverage=(0.1, 0.2),
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=3,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=0)
-        
-        # For the hills, the enemies can be strong but not numerous
-        # A high strength stat will be useful here
-        area_7.add_encounter(Encounter(["Gray_wolf"], [1], encounter_weight=1))
-        area_7.add_encounter(Encounter(["Orc"], [1], encounter_weight=2))
-        area_7.add_encounter(Encounter(["Goblin"], [1], encounter_weight=1))
-        area_7.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
-
-        # Should get multiple lakes surrounded by mountains
-        # Land areas will get less water and more mountains
-        area_8 = Area(8, "Lakeside",
-                      base_tile=Location.GRASS,
-                      allowed_obstacles=(Location.MOUNTAIN, Location.FOREST),
-                      pool_terrain_amount=(0, 3),
-                      pool_terrain_growth=(0, 25),
-                      line_terrain_amount=(0, 0),
-                      large_obstacle_growth=(5, 10),
-                      obstacle_coverage=(0.2, 0.3),
-                      large_obstacles=(Location.MOUNTAIN,),
-                      large_obstacle_amount=4,
-                      base_inaccessible_tile=Location.WATER,
-                      inaccessible_tile_amount=4)
-        
-        maze = Maze(3, 3, "overworld")
-        for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):
-            maze.add_area(area)
-
-        maze.build_maze(blueprint)
-        self.maze = maze.copy()
-        
-        for tries in range(10):
-            try:
-                # Connects the maze areas
-                self.maze.construct_connections()
-                # Can give more randomness to maze area shapes
-                # self.maze.exchange_rooms()
-                self.maze.start_trails()
-                # Creates rooms within the areas
-                self.maze.construct_areas(add_intersections=1)
-                break
-            except IllegalMazeError as e:
-                print(f"Attempt {tries} failed: {e}")
-                self.maze = maze.copy()
-        
-        print(self.maze.get_layout())
-
-        self.maze.place_large_obstacles()
-        self.maze.place_inaccessible_tiles()
-        self.maze.setup_locations()
-
-        great_mountains = self.maze.areas[0]
-        highlands = self.maze.areas[1]
-        coastline = self.maze.areas[2]
-        forest = self.maze.areas[3]
-        deep_forest = self.maze.areas[4]
-        river = self.maze.areas[5]
-        meadows = self.maze.areas[6]
-        hills = self.maze.areas[7]
-        lakeside = self.maze.areas[8]
-
-        # Assign room numbers so that I can override room settings
-        # Rooms connecting to other areas get specific room numbers
-        self.maze.clear_room_numbers()
-        
-        meadows.get_connecting_room(forest.id).number = 0
-        meadows.get_connecting_room(hills.id).number = 1
-        meadows.assign_room_numbers(2)
-
-        forest.get_connecting_room(meadows.id).number = 9
-        forest.get_connecting_room(deep_forest.id).number = 10
-        forest.assign_room_numbers(11)
-
-        hills.get_connecting_room(meadows.id).number = 18
-        hills.get_connecting_room(deep_forest.id).number = 19
-        hills.get_connecting_room(lakeside.id).number = 20
-        hills.assign_room_numbers(21)
-
-        deep_forest.get_connecting_room(forest.id).number = 27
-        deep_forest.get_connecting_room(hills.id).number = 28
-        deep_forest.get_connecting_room(river.id).number = 29
-        deep_forest.get_connecting_room(highlands.id).number = 30
-        deep_forest.assign_room_numbers(31)
-        
-        river.get_connecting_room(deep_forest.id).number = 36
-        river.get_connecting_room(lakeside.id).number = 37
-        river.get_connecting_room(coastline.id).number = 38
-        river.assign_room_numbers(39)
-
-        lakeside.get_connecting_room(hills.id).number = 45
-        lakeside.get_connecting_room(river.id).number = 46
-        lakeside.assign_room_numbers(47)
-
-        coastline.get_connecting_room(river.id).number = 54
-        coastline.assign_room_numbers(55)
-
-        highlands.get_connecting_room(deep_forest.id).number = 63
-        highlands.get_connecting_room(great_mountains.id).number = 64
-        highlands.assign_room_numbers(65)
-
-        great_mountains.get_connecting_room(highlands.id).number = 72
-        great_mountains.assign_room_numbers(73)
-
-        # Starting room, a safe zone with healing NPCs
-        village_room = self.maze.get_room_of_number(2)
-
-        village_room.location.safe_zone = True
-        village_room.line_terrain_amount = (3, 3)
-        village_room.pool_terrain_amount = (0, 0)
-
-        # Isabel
-        # She'll have to do without a name variable
-        innkeeper = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
-        innkeeper.add_conversation(self.storage.get_conversation("the_innkeeper"))
-        innkeeper.add_conversation(self.storage.get_conversation("the_wolf", 3))
-
-        inn = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
-                        presence=innkeeper, presence_x=1, presence_y=2,
-                        entrance_type=Location.IMPORTANT_BLOCKING,
-                        entrance_x=1, entrance_y=2)
-        village_room.location.add_key_object(inn)
-
-        # Henry
-        blacksmith = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
-        blacksmith.add_conversation(self.storage.get_conversation("the_blacksmith"))
-        blacksmith.add_conversation(self.storage.get_conversation("the_hunters_cabin", 0))
-        blacksmith.add_conversation(self.storage.get_conversation("the_hunters_cabin", 1))
-        for conversation in self.storage.get_conversations("the_blacksmith_shop"):
-            blacksmith.add_conversation(conversation)
-
-        smithy = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
-                           presence=blacksmith, presence_x=1, presence_y=2,
-                           entrance_type=Location.IMPORTANT_BLOCKING,
-                           entrance_x=1, entrance_y=2)
-        village_room.location.add_key_object(smithy)
-
-        # Eliza
-        herbalist = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
-        herbalist.add_conversation(self.storage.get_conversation("the_herbalist"))
-        herbalist.add_conversation(self.storage.get_conversation("the_herbalists_gift", 0))
-        herbalist.add_conversation(self.storage.get_conversation("the_druids_blade", 1))
-        
-        apothecary = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
-                               presence=herbalist, presence_x=1, presence_y=2,
-                               entrance_type=Location.IMPORTANT_BLOCKING,
-                               entrance_x=1, entrance_y=2)
-        village_room.location.add_key_object(apothecary)
-
-        # Hunters cabin. Hands out quests
-        hunter_room = self.maze.get_room_of_number(3)
-        hunter_room.location.line_terrain_amount = (0, 0)
-        hunter_room.location.pool_terrain_amount = (1, 1)
-        
-        # Richard
-        hunter = Presence(sprite=pygame.image.load("resources/people/Commoner_male.png"))
-        hunter.add_conversation(self.storage.get_conversation("the_hunter"))
-        hunter.add_conversation(self.storage.get_conversation("the_hunters_cabin", 2))
-        hunter.add_conversation(self.storage.get_conversation("the_wolf", 0))
-        hunter.add_conversation(self.storage.get_conversation("the_wolf", 1))
-        hunter.add_conversation(self.storage.get_conversation("the_wolf", 2))
-
-        # A small house surrounded by fences
-        hunter_cabin_terrain = [
-            [4, 11, 9, 9, 4],
-            [4, 9, 9, 9, 4],
-            [4, 0, 5, 0, 4],
-            [4, 0, 0, 0, 4],
-            [3, 3, -1, 3, 3],
-        ]
-
-        hunter_cabin = KeyObject(length=5, height=5,
-                                 presence=hunter, presence_x=2, presence_y=2,
-                                 override_terrain=hunter_cabin_terrain)
-        hunter_room.location.add_key_object(hunter_cabin)
-
-        # A great oak tree in the middle of a field
-        # The player can pick up a hidden item
-        great_oak_room = self.maze.get_room_of_number(4)
-        great_oak_room.location.line_terrain_amount = (0, 0)
-        great_oak_room.location.pool_terrain_amount = (0, 0)
-        great_oak_room.location.object_terrain_amount = (0, 0)
-
-        crescent_knife = Presence()
-        crescent_knife.add_conversation(self.storage.get_conversation("the_druids_blade", 0))
-
-        oak_terrain = [
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-            [-1, -1, -1, 10, 9, -1, -1, -1],
-            [-1, -1, -1, 9, 9, -1, -1, -1],
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-            [-1, -1, -1, -1, -1, -1, -1, -1],
-        ]
-
-        the_oak = KeyObject(length=8, height=8,
-                            presence=crescent_knife, presence_x=4, presence_y=4,
-                            override_terrain=oak_terrain)
-        great_oak_room.location.add_key_object(the_oak)
-
-        # Witch house in the forest
-        # Hands out a quest and sells spells
-        witches_room = self.maze.get_room_of_number(11)
-        witches_room.location.min_obstacle_coverage = 0.5
-        witches_room.location.max_obstacle_coverage = 0.5
-        witches_room.location.line_terrain_amount = (0, 0)
-        witches_room.location.pool_terrain_amount = (1, 1)
-
-        witch = Presence(sprite=pygame.image.load("resources/people/Commoner_female.png"))
-        witch.add_conversation(self.storage.get_conversation("the_witch"))
-        witch.add_conversation(self.storage.get_conversation("the_witches_house", 0))
-        witch.add_conversation(self.storage.get_conversation("the_witches_house", 2))
-        witch.add_conversation(self.storage.get_conversation("the_witches_house", 3))
-
-        witches_house = KeyObject(length=3, height=3, terrain=Location.HOUSE_3x2,
-                                  presence=witch, presence_x=1, presence_y=2,
-                                  entrance_type=Location.IMPORTANT_BLOCKING,
-                                  entrance_x=1, entrance_y=2)
-        witches_room.location.add_key_object(witches_house)
-
-        goblin_room = self.maze.get_room_of_number(12)
-        goblin_room.location.allowed_obstacles = (Location.FOREST, Location.MOUNTAIN, Location.OAK)
-        goblin_cave_terrain = [
-            [30, 30, 30],
-            [30, 30, 30],
-            [30, 6, 30],
-            [1, -1, 1]
-        ]
-        # We're going underground!
-        cave_warp = Presence(trigger_on_contact=True)
-        cave_warp.add_warp("underground", 4, 0, 1)
-
-        goblin_cave = KeyObject(length=3, height=4,
-                                presence=cave_warp, presence_x=1, presence_y=2,
-                                override_terrain=goblin_cave_terrain)
-        goblin_room.location.add_key_object(goblin_cave)
-
-        # Build the locations
-        self.maze.build_locations()
-
-    def define_underground_map(self):
-        """Creates an underground maze for all areas.
-        These are small 2x2 areas where one might find npcs or clear some quests.
-        Dungeons are not defined here."""
-        underground_blueprint = Blueprint.underground_blueprint()
-        
-        area_0 = Area(0, "Great mountains", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        
-        area_1 = Area(1, "Highlands", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        
-        area_2 = Area(2, "Coastline", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        
-        area_3 = Area(3, "Forest", base_tile=Location.PALE_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(3, 4), pool_terrain_growth=(0, 4))
-        # Spiders and goblins in the forest underground
-        area_3.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider"], [1, 1, 1], encounter_weight=1))
-        area_3.add_encounter(Encounter(["Goblin", "Goblin"], [1, 1], encounter_weight=1))
-        
-        area_4 = Area(4, "Deep forest", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        # Mostly bats down here
-        area_4.add_encounter(Encounter(["Red_spider", "Red_spider", "Red_spider", "Red_spider"], [1, 1, 1, 1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Black_bat"], [1], encounter_weight=1))
-        area_4.add_encounter(Encounter(["Black_bat", "Black_bat"], [1, 1], encounter_weight=1))
-
-        area_5 = Area(5, "River", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        
-        area_6 = Area(6, "Meadows", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        # Only spiders in the meadows underground
-        area_6.add_encounter(Encounter(["Red_spider", "Red_spider"], [1, 1], encounter_weight=1))
-
-        area_7 = Area(7, "Hills", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-        
-        area_8 = Area(8, "Lakeside", base_tile=Location.BRIGHT_GREEN_ROCK,
-        allowed_obstacles=(Location.MOUNTAIN, Location.WATER),
-        pool_terrain_amount=(0, 4), pool_terrain_growth=(0, 4))
-
-        self.underground_maze = Maze(3, 2, "underground")
-        for area in (area_0, area_1, area_2, area_3, area_4, area_5, area_6, area_7, area_8):
-            self.underground_maze.add_area(area)
-
-        self.underground_maze.build_maze(underground_blueprint)
-        print(self.underground_maze.get_layout())
-
-        for room in self.underground_maze.rooms:
-            for direction in range(4):
-                room.set_terrain(direction, Location.MOUNTAIN)
-
-        self.underground_maze.setup_locations()
-
-        great_mountains = self.underground_maze.areas[0]
-        highlands = self.underground_maze.areas[1]
-        coastline = self.underground_maze.areas[2]
-        forest = self.underground_maze.areas[3]
-        deep_forest = self.underground_maze.areas[4]
-        river = self.underground_maze.areas[5]
-        meadows = self.underground_maze.areas[6]
-        hills = self.underground_maze.areas[7]
-        lakeside = self.underground_maze.areas[8]
-
-        self.underground_maze.clear_room_numbers()
-
-        meadows.assign_room_numbers(0)
-        forest.assign_room_numbers(4)
-        hills.assign_room_numbers(8)
-        deep_forest.assign_room_numbers(12)
-        river.assign_room_numbers(16)
-        lakeside.assign_room_numbers(20)
-        coastline.assign_room_numbers(24)
-        highlands.assign_room_numbers(28)
-        great_mountains.assign_room_numbers(32)
-
-        goblin_room = self.underground_maze.get_room_of_number(4)
-        goblin_cave_terrain = [
-            [-2, -1, -2],
-            [30, 7, 30],
-            [30, 30, 30],
-            [30, 30, 30]
-        ]
-        cave_warp = Presence(trigger_on_contact=True)
-        cave_warp.add_warp("overworld", 12, 0, -1)
-
-        goblin_cave = KeyObject(length=3, height=4,
-                                presence=cave_warp, presence_x=1, presence_y=1,
-                                override_terrain=goblin_cave_terrain)
-        goblin_room.location.add_key_object(goblin_cave)
-
-        self.underground_maze.build_locations()
 
     def new_game(self):
-        self.define_main_map()
-        self.define_underground_map()
+        map_builder = MapBuilder(self.storage)
+        map_builder.build()
         
+        self.maze = map_builder.maze
+        self.underground_maze = map_builder.underground
         self.current_maze = self.maze
-        self.current_room = self.maze.get_room_of_number(3)
-        self.current_location = self.current_room.location
-        self.current_area = self.maze.areas[self.current_room.area]
+        self.quest_log = QuestLog()
+        self.set_room(self.maze.get_room_of_number(2))
         
         print(f"Current room: {(self.current_room.x, self.current_room.y)}")
 
         # Add the player
         start_position = self.current_location.get_random_position()
-        self.player = Unit("Hero", pygame.image.load("resources/people/Player_small.png"),
+        self.player = Unit("Hero", sprite=pygame.image.load("resources/people/Player_small.png"),
                            team=1, grid_x=start_position[0], grid_y=start_position[1])
         hero_stats = {"Strength": 4, "Defense": 0, "Resistance": 0,
                       "Agility": 3, "Intelligence": 0, "Stamina": 0,
-                      "Rank": 4, "Constitution": 6}
+                      "Rank": 6, "Constitution": 4}
         self.player.set_stats(CharacterStats(hero_stats))
         self.inventory = Inventory()
         self.inventory.add_item(self.storage.get_item("Herb"))
-        self.quest_log = QuestLog()
         self.adventure_menu = AdventureMenu(self.player, self.inventory)
     
+    def load_sprite(self, presence: Presence):
+        """Loads a sprite"""
+        if presence.sprite_path:
+            presence.sprite = pygame.image.load(presence.sprite_path)
+    
+    def load_conversations(self, presence: Presence):
+        """Loads all conversations belonging to a presence"""
+        if presence.conversations:
+            return
+        for name, index in presence.conversation_names:
+            presence.add_conversation(self.storage.get_conversation(name, index))
+    
     def set_room(self, room: Room):
+        """Sets the current room and prepare sprites for display"""
         self.current_room = room
         self.current_location = room.location
         self.current_area = self.current_maze.areas[room.area]
+
+        for presence in room.location.presences:
+            # Need to load conversations first since they may affect sprite visibility
+            self.load_conversations(presence)
+            if presence.should_show(self.quest_log):
+                self.load_sprite(presence)
+            
     
     def warp_to(self, map: str, room_number: int):
         """Warps the player to a different map."""
@@ -1075,7 +600,7 @@ class Game():
 
     def draw_sprites(self, y: int):
         for presence in self.current_location.presences:
-            if presence.is_visible() and presence.grid_y == y:
+            if presence.grid_y == y and presence.sprite:
                 self.screen.blit(presence.sprite, presence.get_position())
                 presence.sprite.set_alpha(presence.get_alpha())
 

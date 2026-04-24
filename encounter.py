@@ -5,9 +5,11 @@ from quest_log import QuestLog
 class Encounter:
     """Represents an enemy encounter.
     The units are not instantiated and should be fetched from the storage."""
-    def __init__(self, enemies: list[str], level: list[int],
+    def __init__(self, enemies: list[str], levels: list[int],
                  encounter_weight: int = 1,
                  conversation: Conversation = None,
+                 conversation_name: str = None,
+                 conversation_index: int = 0,
                  reward: int = 0,
                  allow_escape: bool = False,
                  block_escape: bool = False):
@@ -19,10 +21,14 @@ class Encounter:
         It can also be used to advance quests or give rewards.
         Use this to hand out one-time rewards."""
         self.names = enemies
-        self.level = level
+        self.levels = levels
         self.units = []
         self.encounter_weight = encounter_weight
         self.conversation = conversation
+        # The conversation should be loaded from the storage upon encounter start
+        # This should make it easier to save and load encounters    
+        self.conversation_name = conversation_name
+        self.conversation_index = conversation_index
         self.reward = reward
         self.allow_escape = allow_escape
         self.block_escape = block_escape
@@ -30,9 +36,11 @@ class Encounter:
     def instantiate(self, storage) -> Self:
         """Fetches the units from the storage.
         Returns a new encounter with the units."""
-        encounter = Encounter(self.names, self.level, self.encounter_weight,
+        encounter = Encounter(self.names, self.levels, self.encounter_weight,
                               self.conversation, self.reward)
-        encounter.units = storage.get_enemies(self.names, self.level)
+        encounter.units = storage.get_enemies(self.names, self.levels)
+        if self.conversation_name:
+            encounter.conversation = storage.get_conversation(self.conversation_name, self.conversation_index)
         return encounter
     
     def check_requirements(self, quest_log: QuestLog) -> bool:
@@ -54,3 +62,16 @@ class Encounter:
         """Updates the quest log with the encounter's conversation."""
         if self.conversation is not None:
             quest_log.finish_conversation(self.conversation)
+    
+    def get_save_game_dict(self) -> dict:
+        data = {
+            "names": self.names,
+            "levels": self.levels,
+            "conversation_name": self.conversation_name,
+            "conversation_index": self.conversation_index,
+            "encounter_weight": self.encounter_weight,
+            "reward": self.reward,
+            "allow_escape": self.allow_escape,
+            "block_escape": self.block_escape
+        }
+        return data
